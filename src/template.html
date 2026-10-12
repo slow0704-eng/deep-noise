@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Noise</title>
+<meta name="description" content="WebAssembly 음향 엔진 기반 화이트·핑크·브라운 노이즈 플레이어">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%234f6bff%22/%3E%3Cpath d=%22M6 9v6M10 6v12M14 8v8M18 10v4%22 stroke=%22white%22 stroke-width=%222%22 stroke-linecap=%22round%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0d14; --bg2:#11141f; --panel:#151927; --line:#232a3d;
+  --text:#e7eaf3; --muted:#8c94ab; --dim:#5b6380;
+  --accent:#7aa2ff; --accent2:#b48cff; --deep:#4f6bff; --warm:#ffb38a;
+  --track:#262d42; --shadow:0 10px 40px rgba(0,0,0,.45); color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:radial-gradient(1200px 700px at 50% -10%, #1a2140 0%, var(--bg) 60%) fixed, var(--bg);
+  color:var(--text); font-family:Pretendard,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  min-height:100vh; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:980px;margin:0 auto;padding:28px 16px 48px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--deep),var(--accent2));
+  display:grid;place-items:center;box-shadow:0 0 24px rgba(122,162,255,.35)}
+h1{font-size:20px;margin:0;font-weight:700;letter-spacing:-.01em}
+.sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.badge{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 10px;white-space:nowrap}
+.badge b{color:var(--accent);font-weight:600}
+
+.hero{background:linear-gradient(180deg,rgba(21,25,39,.85),rgba(17,20,31,.85));border:1px solid var(--line);
+  border-radius:22px;padding:22px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.hero-top{display:flex;align-items:center;gap:22px}
+.play{flex:none;width:96px;height:96px;border-radius:50%;border:none;cursor:pointer;position:relative;
+  background:radial-gradient(circle at 35% 30%,#93b4ff,var(--deep) 70%);color:#fff;
+  box-shadow:0 0 0 0 rgba(122,162,255,.4),0 8px 30px rgba(79,107,255,.45);transition:transform .15s}
+.play:hover{transform:scale(1.04)} .play:active{transform:scale(.97)}
+.play svg{width:34px;height:34px}
+.play .ring{position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(122,162,255,.5);
+  opacity:0;transform:scale(1);pointer-events:none}
+.status{min-width:0;flex:1}
+.now{font-size:13px;color:var(--muted)}
+.preset-name{font-size:26px;font-weight:700;margin:4px 0 8px;letter-spacing:-.02em}
+.meta{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted)}
+.meta span{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.vol{display:flex;align-items:center;gap:10px;margin-top:14px}
+.vol svg{flex:none;color:var(--muted)}
+canvas#viz{display:block;width:100%;height:170px;margin-top:18px;border-radius:14px;background:rgba(5,7,12,.55)}
+
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 6px}
+.chip{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:999px;
+  padding:9px 14px;font:inherit;font-size:13.5px;cursor:pointer;transition:all .15s;display:flex;gap:6px;align-items:center}
+.chip:hover{border-color:#3a4566}
+.chip.on{background:linear-gradient(135deg,rgba(79,107,255,.35),rgba(180,140,255,.25));border-color:var(--accent)}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px 16px 6px}
+.card h2{font-size:13px;font-weight:600;color:var(--muted);margin:0 0 12px;letter-spacing:.02em;display:flex;justify-content:space-between}
+.ctl{margin-bottom:14px}
+.ctl label{display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:7px}
+.ctl label output{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
+.ctl .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px}
+
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;cursor:pointer;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:6px;
+  background:linear-gradient(90deg,var(--c,var(--accent)) var(--p,50%),var(--track) var(--p,50%))}
+input[type=range]::-moz-range-track{height:6px;border-radius:6px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:6px;background:var(--c,var(--accent))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;margin-top:-6px;
+  background:#fff;border:3px solid var(--c,var(--accent));box-shadow:0 2px 8px rgba(0,0,0,.4)}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:#fff;border:3px solid var(--c,var(--accent))}
+input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:6px}
+
+.foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;
+  background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
+.timer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.timer .t-label{font-size:13.5px;color:var(--muted);margin-right:4px}
+.seg{border:1px solid var(--line);background:var(--bg2);color:var(--text);border-radius:10px;padding:7px 11px;font:inherit;font-size:13px;cursor:pointer}
+.seg.on{border-color:var(--accent);color:var(--accent)}
+.remain{font-size:13px;color:var(--accent);font-variant-numeric:tabular-nums}
+.hint{font-size:12px;color:var(--dim)}
+kbd{font-family:inherit;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font-size:11px}
+.err{display:none;margin-top:12px;padding:10px 12px;border-radius:10px;background:rgba(255,100,100,.12);border:1px solid rgba(255,100,100,.35);font-size:13px}
+
+@media (max-width:820px){.grid{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){
+  .grid{grid-template-columns:1fr}
+  .hero-top{gap:16px} .play{width:76px;height:76px} .preset-name{font-size:21px}
+  canvas#viz{height:130px} .badge{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M2 12h2M6 8v8M10 4v16M14 7v10M18 10v4M22 12h0"/></svg></div>
+      <div><h1>Deep Noise</h1><div class="sub">깊은 저음과 넓은 음색의 노이즈 사운드스케이프</div></div>
+    </div>
+    <div class="badge">엔진 <b>WebAssembly</b> · <span id="sr">—</span></div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-top">
+      <button class="play" id="play" aria-label="재생">
+        <span class="ring" id="ring"></span>
+        <svg id="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+      </button>
+      <div class="status">
+        <div class="now" id="now">재생 버튼을 눌러 시작하세요</div>
+        <div class="preset-name" id="pname">깊은 우주</div>
+        <div class="meta" id="meta"></div>
+        <div class="vol">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+          <input type="range" id="vol" min="0" max="1" step="0.001" value="0.6" aria-label="볼륨">
+        </div>
+      </div>
+    </div>
+    <canvas id="viz" aria-label="실시간 스펙트럼"></canvas>
+    <div class="err" id="err"></div>
+  </section>
+
+  <div class="presets" id="presets"></div>
+
+  <div class="grid">
+    <div class="card"><h2>레이어 믹스</h2><div id="g-mix"></div></div>
+    <div class="card"><h2>음색 · 저역</h2><div id="g-tone"></div></div>
+    <div class="card"><h2>공간 · 움직임</h2><div id="g-move"></div></div>
+  </div>
+
+  <div class="foot">
+    <div class="timer" id="timer"><span class="t-label">슬립 타이머</span></div>
+    <span class="remain" id="remain"></span>
+    <span class="hint"><kbd>Space</kbd> 재생/정지 · 설정은 자동 저장됩니다</span>
+  </div>
+</div>
+
+<script type="text/plain" id="worklet-src">
+class DeepNoise extends AudioWorkletProcessor {
+  constructor(opts) {
+    super();
+    const { bytes, params } = opts.processorOptions;
+    const mod = new WebAssembly.Module(bytes);
+    this.e = new WebAssembly.Instance(mod, { m: { tan: Math.tan, sin: Math.sin, cos: Math.cos } }).exports;
+    this.e.init(sampleRate);
+    for (const [k, v] of params) this.e.setParam(k, v);
+    this.e.snap();
+    this.L = new Float32Array(this.e.memory.buffer, 0, 128);
+    this.R = new Float32Array(this.e.memory.buffer, 512, 128);
+    this.port.onmessage = (ev) => { for (const [k, v] of ev.data) this.e.setParam(k, v); };
+  }
+  process(_in, outs) {
+    const o = outs[0], n = o[0].length;
+    for (let off = 0; off < n; off += 128) {
+      const m = Math.min(128, n - off);
+      this.e.process(m);
+      o[0].set(this.L.subarray(0, m), off);
+      if (o[1]) o[1].set(this.R.subarray(0, m), off);
+    }
+    return true;
+  }
+}
+registerProcessor('deep-noise', DeepNoise);
+</script>
+
+<script>
+const WASM_B64 = "/*__WASM_BASE64__*/";
+
+// ── 파라미터 정의 ────────────────────────────────────────────
+// id: 엔진 파라미터 번호, map: UI값 → 엔진값
+const logMap = (lo, hi) => v => lo * Math.pow(hi / lo, v);
+const CONTROLS = [
+  { key:'white', g:'mix', label:'White', id:1, color:'#e8ecff', fmt:pct },
+  { key:'pink',  g:'mix', label:'Pink',  id:2, color:'#ff9ccf', fmt:pct },
+  { key:'brown', g:'mix', label:'Brown', id:3, color:'#d39a6a', fmt:pct },
+  { key:'deep',  g:'mix', label:'Deep 서브베이스', id:4, color:'#4f6bff', fmt:pct },
+  { key:'rain',  g:'mix', label:'빗방울', id:12, color:'#6fd3e8', fmt:pct },
+
+  { key:'subf',  g:'tone', label:'서브 주파수', id:5, color:'#4f6bff', map:logMap(25,120), fmt:v=>Math.round(logMap(25,120)(v))+' Hz' },
+  { key:'bass',  g:'tone', label:'베이스 부스트', id:6, color:'#7a8cff', map:v=>v*4, fmt:v=>'+'+(20*Math.log10(1+v*4)).toFixed(1)+' dB' },
+  { key:'tone',  g:'tone', label:'톤 (로우패스)', id:7, color:'#b48cff', map:logMap(120,20000), fmt:v=>{const f=logMap(120,20000)(v);return f>=1000?(f/1000).toFixed(1)+' kHz':Math.round(f)+' Hz'} },
+  { key:'air',   g:'tone', label:'Air (고역 광채)', id:8, color:'#c9b8ff', min:-1, map:v=>v>0?v*1.5:v*0.95, fmt:v=>(v>0?'+':'')+Math.round(v*100) },
+  { key:'warm',  g:'tone', label:'웜스 (새츄레이션)', id:14, color:'#ffb38a', fmt:pct },
+
+  { key:'width', g:'move', label:'스테레오 폭', id:9, color:'#7aa2ff', fmt:pct },
+  { key:'swell', g:'move', label:'스웰 깊이 (파도)', id:10, color:'#6fd3e8', fmt:pct },
+  { key:'rate',  g:'move', label:'스웰 속도', id:11, color:'#6fd3e8', map:logMap(0.03,0.35), fmt:v=>(1/logMap(0.03,0.35)(v)).toFixed(1)+' 초 주기' },
+  { key:'dens',  g:'move', label:'빗방울 밀도', id:13, color:'#6fd3e8', fmt:pct },
+];
+function pct(v){ return Math.round(v*100)+'%'; }
+
+const BASE = { white:0, pink:0, brown:0, deep:0, rain:0, subf:.4, bass:0, tone:1, air:0, warm:0, width:.6, swell:0, rate:.4, dens:.5 };
+const PRESETS = [
+  { name:'깊은 우주', icon:'🌌', v:{ brown:.55, deep:.9, subf:.25, bass:.55, tone:.45, warm:.45, width:.85, swell:.3, rate:.15 } },
+  { name:'화이트',   icon:'⚪', v:{ white:.9, tone:1, width:.6 } },
+  { name:'핑크',     icon:'🌸', v:{ pink:.95, tone:1, width:.6 } },
+  { name:'브라운',   icon:'🟤', v:{ brown:.95, bass:.25, tone:.85, width:.6 } },
+  { name:'바다 파도', icon:'🌊', v:{ pink:.45, brown:.7, deep:.35, subf:.35, tone:.8, swell:.9, rate:.4, width:1, warm:.2 } },
+  { name:'빗소리',   icon:'🌧️', v:{ pink:.3, brown:.35, rain:.85, dens:.7, deep:.15, tone:.92, air:.25, width:1 } },
+  { name:'비행기 객실', icon:'✈️', v:{ brown:.85, deep:.6, subf:.65, bass:.45, tone:.4, warm:.3, width:.35 } },
+  { name:'집중',     icon:'🎧', v:{ pink:.6, brown:.45, tone:.72, air:-.25, width:.7 } },
+];
+
+// ── 상태 ───────────────────────────────────────────────────
+const LS = 'deepnoise.v1';
+let state = { preset:'깊은 우주', vol:.6, v:{ ...BASE, ...PRESETS[0].v } };
+try { const s = JSON.parse(localStorage.getItem(LS)); if (s && s.v) state = { ...state, ...s, v:{ ...BASE, ...s.v } }; } catch {}
+const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch {} };
+
+const $ = id => document.getElementById(id);
+let ctx, node, out, analyser, playing = false, raf = 0;
+
+const masterOf = v => 1.5 * v * v;
+function engineParams() {
+  const p = [[0, masterOf(state.vol)]];
+  for (const c of CONTROLS) p.push([c.id, (c.map || (x=>x))(state.v[c.key])]);
+  return p;
+}
+function send(pairs) { if (node) node.port.postMessage(pairs); }
+
+// ── UI 빌드 ────────────────────────────────────────────────
+const inputs = {};
+function paint(inp) {
+  const min = +inp.min, max = +inp.max;
+  inp.style.setProperty('--p', ((inp.value - min) / (max - min) * 100) + '%');
+}
+for (const c of CONTROLS) {
+  const wrap = document.createElement('div'); wrap.className = 'ctl';
+  const min = c.min ?? 0;
+  wrap.innerHTML = `<label><span><i class="dot" style="background:${c.color}"></i>${c.label}</span><output></output></label>
+    <input type="range" min="${min}" max="1" step="0.001" aria-label="${c.label}">`;
+  const inp = wrap.querySelector('input'), o = wrap.querySelector('output');
+  inp.style.setProperty('--c', c.color);
+  inp.value = state.v[c.key];
+  const upd = () => { o.textContent = c.fmt(+inp.value); paint(inp); };
+  inp.addEventListener('input', () => {
+    state.v[c.key] = +inp.value; upd();
+    send([[c.id, (c.map || (x=>x))(+inp.value)]]);
+    if (state.preset) { state.preset = null; renderPreset(); }
+    save();
+  });
+  inp.addEventListener('dblclick', () => { inp.value = BASE[c.key]; inp.dispatchEvent(new Event('input')); });
+  upd(); inputs[c.key] = { inp, upd };
+  $('g-' + c.g).appendChild(wrap);
+}
+const vol = $('vol'); vol.value = state.vol; paint(vol);
+vol.addEventListener('input', () => { state.vol = +vol.value; paint(vol); send([[0, masterOf(state.vol)]]); save(); });
+
+const presetBox = $('presets');
+for (const p of PRESETS) {
+  const b = document.createElement('button'); b.className = 'chip'; b.dataset.name = p.name;
+  b.innerHTML = `<span>${p.icon}</span>${p.name}`;
+  b.onclick = () => applyPreset(p);
+  presetBox.appendChild(b);
+}
+function applyPreset(p) {
+  state.preset = p.name; state.v = { ...BASE, ...p.v };
+  for (const c of CONTROLS) { inputs[c.key].inp.value = state.v[c.key]; inputs[c.key].upd(); }
+  send(engineParams().slice(1)); renderPreset(); save();
+}
+function renderPreset() {
+  for (const b of presetBox.children) b.classList.toggle('on', b.dataset.name === state.preset);
+  $('pname').textContent = state.preset || '사용자 설정';
+  const v = state.v, m = [];
+  const layers = [['White',v.white],['Pink',v.pink],['Brown',v.brown],['Deep',v.deep],['Rain',v.rain]].filter(x=>x[1]>.02);
+  m.push(layers.length ? layers.map(x=>x[0]).join(' + ') : '무음');
+  if (v.deep > .02) m.push('서브 ' + Math.round(logMap(25,120)(v.subf)) + ' Hz');
+  if (v.swell > .05) m.push('파도 스웰');
+  $('meta').innerHTML = m.map(s => `<span>${s}</span>`).join('');
+}
+renderPreset();
+
+// ── 오디오 ─────────────────────────────────────────────────
+function b64ToBytes(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u.buffer; }
+
+async function boot() {
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint:'playback' });
+  const src = $('worklet-src').textContent;
+  const url = URL.createObjectURL(new Blob([src], { type:'application/javascript' }));
+  try { await ctx.audioWorklet.addModule(url); }
+  catch { await ctx.audioWorklet.addModule("data:application/javascript;base64," + btoa(unescape(encodeURIComponent(src)))); }
+  node = new AudioWorkletNode(ctx, 'deep-noise', {
+    numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2],
+    processorOptions:{ bytes:b64ToBytes(WASM_B64), params:engineParams() },
+  });
+  out = ctx.createGain(); out.gain.value = 0;
+  analyser = ctx.createAnalyser(); analyser.fftSize = 8192; analyser.smoothingTimeConstant = .82;
+  node.connect(out); out.connect(analyser); analyser.connect(ctx.destination);
+  $('sr').textContent = (ctx.sampleRate/1000).toFixed(1) + ' kHz';
+}
+
+async function toggle() {
+  try {
+    if (!ctx) await boot();
+    if (!playing) {
+      await ctx.resume();
+      out.gain.cancelScheduledValues(ctx.currentTime);
+      out.gain.setTargetAtTime(1, ctx.currentTime, 0.4);
+      playing = true;
+    } else {
+      out.gain.cancelScheduledValues(ctx.currentTime);
+      out.gain.setTargetAtTime(0, ctx.currentTime, 0.15);
+      playing = false;
+      setTimeout(() => { if (!playing) ctx.suspend(); }, 900);
+    }
+    renderPlay();
+  } catch (e) {
+    const el = $('err'); el.style.display = 'block';
+    el.textContent = '오디오 엔진을 시작하지 못했습니다: ' + e.message + ' (최신 Chrome/Edge/Firefox/Safari를 사용해 주세요)';
+  }
+}
+function renderPlay() {
+  $('ico').innerHTML = playing
+    ? '<rect x="6.5" y="5" width="4" height="14" rx="1.2"/><rect x="13.5" y="5" width="4" height="14" rx="1.2"/>'
+    : '<path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/>';
+  $('play').setAttribute('aria-label', playing ? '정지' : '재생');
+  $('now').textContent = playing ? '재생 중' : (ctx ? '일시정지됨' : '재생 버튼을 눌러 시작하세요');
+  if (playing && !raf) raf = requestAnimationFrame(draw);
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: state.preset || 'Deep Noise', artist:'Deep Noise' });
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+  }
+}
+$('play').onclick = toggle;
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !(e.target instanceof HTMLInputElement && e.target.type !== 'range')) { e.preventDefault(); toggle(); }
+});
+if ('mediaSession' in navigator) {
+  navigator.mediaSession.setActionHandler('play', () => { if (!playing) toggle(); });
+  navigator.mediaSession.setActionHandler('pause', () => { if (playing) toggle(); });
+}
+
+// ── 스펙트럼 시각화 ────────────────────────────────────────
+const cv = $('viz'), g = cv.getContext('2d');
+let fbuf, tbuf, smooth = null;
+function draw() {
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (cv.width !== W*dpr || cv.height !== H*dpr) { cv.width = W*dpr; cv.height = H*dpr; }
+  g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const fMin = 20, fMax = 20000, xOf = f => Math.log(f/fMin)/Math.log(fMax/fMin)*W;
+
+  // 그리드
+  g.font = '10px Pretendard, sans-serif'; g.fillStyle = '#4a5370'; g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 1;
+  for (const [f, t] of [[30,'30'],[60,'60'],[125,'125'],[250,'250'],[500,'500'],[1000,'1k'],[2000,'2k'],[4000,'4k'],[8000,'8k'],[16000,'16k']]) {
+    const x = Math.round(xOf(f)) + .5; g.beginPath(); g.moveTo(x,0); g.lineTo(x,H); g.stroke(); g.fillText(t, x+3, H-6);
+  }
+  if (!analyser) { raf = 0; return; }
+  const n = analyser.frequencyBinCount;
+  if (!fbuf) { fbuf = new Float32Array(n); tbuf = new Float32Array(analyser.fftSize); }
+  analyser.getFloatFrequencyData(fbuf);
+  const binHz = ctx.sampleRate / analyser.fftSize, cols = Math.max(64, Math.floor(W/3));
+  if (!smooth || smooth.length !== cols) smooth = new Float32Array(cols).fill(-120);
+  const pts = [];
+  for (let i = 0; i < cols; i++) {
+    const f0 = fMin*Math.pow(fMax/fMin, i/cols), f1 = fMin*Math.pow(fMax/fMin, (i+1)/cols);
+    let a = Math.floor(f0/binHz), b = Math.max(a+1, Math.ceil(f1/binHz)), s = 0, c = 0;
+    for (let k = a; k < b && k < n; k++) { s += Math.pow(10, fbuf[k]/10); c++; }
+    const db = c ? 10*Math.log10(s/c + 1e-12) : -120;
+    smooth[i] += (db - smooth[i]) * .35;
+    const y = H - 14 - Math.max(0, Math.min(1, (smooth[i] + 110) / 85)) * (H - 24);
+    pts.push([ (i+.5)/cols*W, y ]);
+  }
+  const grad = g.createLinearGradient(0,0,W,0);
+  grad.addColorStop(0,'#4f6bff'); grad.addColorStop(.35,'#7aa2ff'); grad.addColorStop(.7,'#b48cff'); grad.addColorStop(1,'#ff9ccf');
+  g.beginPath(); g.moveTo(0,H);
+  for (const [x,y] of pts) g.lineTo(x,y);
+  g.lineTo(W,H); g.closePath();
+  g.globalAlpha = .28; g.fillStyle = grad; g.fill(); g.globalAlpha = 1;
+  g.beginPath(); pts.forEach(([x,y],i) => i ? g.lineTo(x,y) : g.moveTo(x,y));
+  g.strokeStyle = grad; g.lineWidth = 2; g.stroke();
+
+  // 재생 버튼 링: 저역 에너지에 반응
+  analyser.getFloatTimeDomainData(tbuf);
+  let e = 0; for (let i = 0; i < tbuf.length; i++) e += tbuf[i]*tbuf[i];
+  const rms = Math.sqrt(e / tbuf.length), ring = $('ring');
+  ring.style.opacity = Math.min(.9, rms * 4); ring.style.transform = `scale(${1 + Math.min(.25, rms * 1.2)})`;
+
+  if (playing || out.gain.value > .001) raf = requestAnimationFrame(draw);
+  else { raf = 0; ring.style.opacity = 0; }
+}
+draw();
+window.addEventListener('resize', () => { if (!raf) draw(); });
+
+// ── 슬립 타이머 ────────────────────────────────────────────
+let timerEnd = 0, timerId = 0;
+const timerBox = $('timer');
+for (const m of [0, 15, 30, 60, 90]) {
+  const b = document.createElement('button'); b.className = 'seg' + (m ? '' : ' on');
+  b.textContent = m ? m + '분' : '끄기';
+  b.onclick = () => {
+    for (const x of timerBox.querySelectorAll('.seg')) x.classList.toggle('on', x === b);
+    clearInterval(timerId); timerEnd = m ? Date.now() + m*60000 : 0; $('remain').textContent = '';
+    if (m) { if (!playing) toggle(); timerId = setInterval(tick, 1000); tick(); }
+  };
+  timerBox.appendChild(b);
+}
+function tick() {
+  const left = timerEnd - Date.now();
+  if (left <= 0) {
+    clearInterval(timerId); $('remain').textContent = '';
+    for (const x of timerBox.querySelectorAll('.seg')) x.classList.toggle('on', x.textContent === '끄기');
+    if (playing) toggle();
+    return;
+  }
+  // 마지막 60초 동안 서서히 페이드아웃
+  if (left < 60000 && playing) out.gain.setTargetAtTime(Math.max(0.0001, left/60000), ctx.currentTime, .5);
+  const s = Math.ceil(left/1000);
+  $('remain').textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} 후 종료`;
+}
+</script>
+</body>
+</html>

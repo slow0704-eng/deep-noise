@@ -1,0 +1,8 @@
+{
+  "name": "deep-noise",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WebAssembly 음향 엔진 기반 화이트노이즈 플레이어",
+  "scripts": { "build": "node build.cjs" },
+  "devDependencies": { "wabt": "1.0.36" }
+}
