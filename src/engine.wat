@@ -29,15 +29,17 @@
   ;;
   ;; 채널 상태 오프셋: 0 rng, 4..28 pink b0..b6, 32 brown,
   ;; 36/40 bass svf, 44/48 lp svf, 52 air lp, 56 dc x1, 60 dc y1,
-  ;; 64/68 잔빗소리 svf, 72 env, 76 다음 트리거까지 샘플, 80 rng, 88/92 hp svf
-  ;; 필터 계수: 2048/2064 deep, 2080 bass, 2096 lp, 2128 잔빗소리, 2144 hp
+  ;; 64/68 잔빗소리 svf, 72 env, 76 다음 트리거까지 샘플, 80 rng, 88/92 hp svf,
+  ;; 96/100 lp 2단 svf, 104 잔빗소리 env(어택 스무딩)
+  ;; 필터 계수: 2048/2064 deep, 2080 bass, 2096 lp, 2112 lp 2단, 2128 잔빗소리, 2144 hp
   ;;
   ;; 파라미터: 0 마스터, 1-4 white/pink/brown/deep, 5 서브 주파수, 6 베이스,
   ;; 7 LP 컷오프, 8 air, 9 폭, 10/11 스웰 깊이/속도, 12 방울 레벨, 13 방울 빈도 λ(회/초),
   ;; 14 웜스, 15 LP Q, 16 HP 컷오프(<10.5Hz면 바이패스), 17 HP Q,
   ;; 18 게이트(0/1, 스무딩 없이 목표값 사용), 19 페이드 인(초), 20 페이드 아웃(초),
   ;; 21 '톡' 중심(Hz), 22 '툭' 중심(Hz), 23 톡 비율, 24 '툭' 임펄스 감쇠(ms),
-  ;; 25 잔빗소리 레벨, 26 잔빗소리 빈도 배수(λ 대비), 27 방울 음높이 배수
+  ;; 25 잔빗소리 레벨, 26 잔빗소리 빈도 배수(λ 대비), 27 방울 음높이 배수,
+  ;; 28 LP 기울기(0 = 12 dB/oct, 1 = 24 dB/oct, 사이는 크로스페이드)
 
   (global $sr     (mut f32) (f32.const 48000))
   (global $lo     (mut f32) (f32.const 0))
@@ -49,6 +51,8 @@
   (global $dL     (mut f32) (f32.const 0))
   (global $dR     (mut f32) (f32.const 0))
   (global $pitD   (mut f32) (f32.const 0.993))
+  (global $pitA   (mut f32) (f32.const 0.03))    ;; 잔빗소리 어택 스무딩 계수
+  (global $brA    (mut f32) (f32.const 0.980392)) ;; 브라운 누설 계수(샘플레이트 보정)
   (global $airC   (mut f32) (f32.const 0.3))
   (global $dcR    (mut f32) (f32.const 0.998))
   (global $s1 (mut f32) (f32.const 0)) (global $c1 (mut f32) (f32.const 1))
@@ -143,6 +147,12 @@
     (f32.store (i32.const 1228) (f32.const 1700))
     (global.set $dropT (f32.const 2000)) (global.set $vi (i32.const 0))
     ;; 잔빗소리 버스트 감쇠 ≈ 3 ms
+    ;; 잔빗소리 어택 ≈ 0.8 ms: 계단식 시작이 만드는 광대역 '틱'(지지직거림)을 없앤다
+    (global.set $pitA (f32.sub (f32.const 1) (f32.demote_f64 (call $exp (f64.promote_f32
+      (f32.div (f32.const -1250) (local.get $sr)))))))
+    ;; 브라운 적분기 코너 ≈ 151 Hz (48 kHz에서 기존 0.980392와 같고, 다른 샘플레이트에서도 같은 색)
+    (global.set $brA (f32.demote_f64 (call $exp (f64.promote_f32
+      (f32.div (f32.const -950.6) (local.get $sr))))))
     (global.set $pitD (f32.demote_f64 (call $exp (f64.promote_f32
       (f32.div (f32.const -333) (local.get $sr))))))
     (call $svfcoef (i32.const 2080) (f32.const 90) (f32.const 0.7))     ;; bass shelf
@@ -284,8 +294,8 @@
     (local.set $pink (f32.mul (local.get $pink) (f32.const 0.11)))
 
     ;; Brown (누설 적분기)
-    (local.set $br (f32.add (f32.mul (f32.load offset=32 (local.get $b)) (f32.const 0.980392))
-                            (f32.mul (local.get $w) (f32.const 0.0196078))))
+    (local.set $br (f32.add (f32.mul (f32.load offset=32 (local.get $b)) (global.get $brA))
+                            (f32.mul (local.get $w) (f32.sub (f32.const 1) (global.get $brA)))))
     (f32.store offset=32 (local.get $b) (local.get $br))
     (local.set $br (f32.mul (local.get $br) (f32.const 3.5)))
 
@@ -301,6 +311,9 @@
         (f32.mul (call $p (i32.const 13)) (call $p (i32.const 26))))))
       (br $l)))
     (f32.store offset=72 (local.get $b) (local.get $env))
+    (local.set $env (f32.add (f32.load offset=104 (local.get $b))
+      (f32.mul (global.get $pitA) (f32.sub (local.get $env) (f32.load offset=104 (local.get $b))))))
+    (f32.store offset=104 (local.get $b) (local.get $env))
     (f32.store offset=76 (local.get $b) (local.get $cnt))
     (call $svf (i32.add (local.get $b) (i32.const 64)) (i32.const 2128) (f32.mul (local.get $env) (local.get $wX)))
     (local.set $pit (f32.mul (f32.mul (call $p (i32.const 25)) (global.get $GT)) (global.get $bp)))
@@ -321,6 +334,10 @@
     ;; 메인 로우패스 (톤)
     (call $svf (i32.add (local.get $b) (i32.const 44)) (i32.const 2096) (local.get $x))
     (local.set $x (f32.mul (global.get $lo) (global.get $lpG)))
+    ;; 2단(Q 0.707)을 기울기만큼 섞는다: 컷오프 위를 24 dB/oct로 깎아 고역의 쏴— 하는 피로감을 줄임
+    (call $svf (i32.add (local.get $b) (i32.const 96)) (i32.const 2112) (local.get $x))
+    (local.set $x (f32.add (local.get $x)
+      (f32.mul (call $p (i32.const 28)) (f32.sub (global.get $lo) (local.get $x)))))
 
     ;; 하이패스: hp = x − k·bp − lo (상태는 항상 갱신해 바이패스 전환 시 튀지 않게)
     (call $svf (i32.add (local.get $b) (i32.const 88)) (i32.const 2144) (local.get $x))
@@ -424,6 +441,11 @@
         (f32.sub (f32.const 1) (f32.mul (f32.mul (local.get $depth) (f32.const 0.6))
                                         (f32.sub (f32.const 1) (global.get $swCur)))))
       (call $p (i32.const 15)))
+    (call $svfcoef (i32.const 2112)
+      (f32.mul (call $p (i32.const 7))
+        (f32.sub (f32.const 1) (f32.mul (f32.mul (local.get $depth) (f32.const 0.6))
+                                        (f32.sub (f32.const 1) (global.get $swCur)))))
+      (f32.const 0.707))
 
     (local.set $i (i32.const 0))
     (block $done (loop $loop

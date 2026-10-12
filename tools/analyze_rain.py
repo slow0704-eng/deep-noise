@@ -13,6 +13,7 @@
 """
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import librosa
@@ -181,6 +182,7 @@ def compare(ref, got):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")   # Windows 콘솔(cp949)에서도 출력이 깨지지 않게
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("wav")
     ap.add_argument("-o", "--out", default="src/rain_profile.json")
