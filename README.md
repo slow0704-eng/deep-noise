@@ -6,17 +6,61 @@ WebAssembly 음향 엔진으로 깊은 저음과 넓은 음색의 노이즈를 �
 `file://`로 열었을 때 소리가 나지 않으면 `python -m http.server`로 띄운 뒤 `http://localhost:8000`에서 여세요.
 
 ## 기능
-- 레이어: White · Pink · Brown · Deep 서브베이스(25–120Hz, 모노) · 빗방울
-- 음색: 베이스 부스트(최대 +14dB), 톤(로우패스), Air, 웜스(새츄레이션)
+- 레이어: White · Pink · Brown · Deep 서브베이스(25–120Hz, 모노) · 빗소리(푸아송 빗방울 + 잔빗소리)
+- 노이즈 타입 전환: White · Pink · Brown을 레벨을 유지한 채 클릭 없이 크로스페이드
+- 필터: 로우패스·하이패스 컷오프와 Q(공진) — TPT 상태변수필터(바이쿼드와 같은 2차 응답, 실시간 변조에 안정적), Q에 따른 레벨 보정
+- 엔벨로프: 엔진 내부 샘플 단위 페이드 인/아웃(5ms–10초), 볼륨은 블록 안에서 샘플 단위 보간
+- 음색: 베이스 부스트(최대 +14dB), Air, 웜스(새츄레이션)
 - 공간: 스테레오 폭, 파도 스웰(깊이·속도)
 - 프리셋 8종, 실시간 스펙트럼, 슬립 타이머(마지막 1분 페이드아웃), 설정 자동 저장, Space 재생/정지
+
+## 빗소리 엔진
+Andy Farnell 《Designing Sound》의 절차적 오디오 방식: 지속적인 배경 + 확률적으로 도착하는 개별 사건.
+
+- **배경(베드)**: 브라운·핑크 노이즈 + 딥 서브베이스, 로우패스로 색을 맞춤
+- **빗방울**: 푸아송 과정. 다음 방울까지의 간격을 지수분포 `−ln(1−U)·sr/λ`로 샘플 단위로 뽑는다.
+  방울마다 크기(U² 분포, 클수록 낮게), 종류('톡' 유리: Q 6–20·짧은 임펄스 / '툭' 잎: Q 1.2–3·긴 임펄스),
+  밴드패스 중심 주파수, 스테레오 위치를 무작위로 정해 노이즈 임펄스를 공진 밴드패스로 울린다
+- **잔빗소리**: 채널마다 독립된 촘촘한 푸아송 과정(λ의 수십 배) → 3 ms 버스트 → 밴드패스
+- 보이스 풀 16개를 WASM 선형 메모리에 고정 할당해 라운드로빈으로 재사용 — 오디오 스레드 할당 0
+
+### 레퍼런스 파이프라인
+유튜브 빗소리 → 분석 JSON → 엔진 초기 파라미터 자동 바인딩 → 렌더 후 같은 분석기로 재검증.
+
+```
+python -m venv tools/.venv
+tools/.venv/Scripts/activate          # macOS/Linux: source tools/.venv/bin/activate
+pip install -r tools/requirements.txt  # librosa, numpy, scipy, yt-dlp (+ ffmpeg 필요)
+npm install
+npm run rain                           # 아래 다섯 단계를 순서대로 실행
+```
+
+| 단계 | 명령 | 하는 일 |
+|---|---|---|
+| 수집 | `npm run rain:fetch` | `tools/fetch_reference.py` — 원본 오디오를 받아 ffmpeg로 구간만 잘라 48 kHz WAV로 저장(`reference/`, 커밋 안 함) |
+| 분석 | `npm run rain:analyze` | `tools/analyze_rain.py` — 스펙트럼 중심·롤오프·기울기·대역 에너지 비율, RMS, HPSS 타격 성분, 온셋 빈도(검출기 불감 시간 보정)·간격 분포의 푸아송 적합도, 타격 순간의 '톡'/'툭' 주파수 → `src/rain_profile.json` |
+| 피팅 | `npm run rain:fit` | `tools/fit_rain.py` — 엔진 레이어를 하나씩 렌더해 1/3옥타브 대역 파워를 NNLS로 맞추고, 타격 성분 비율이 같아지도록 방울 비중을 이분 탐색, 로우패스 (컷오프, Q) 선택, 출력 레벨 정규화 → 프로파일의 `fit` 블록 |
+| 빌드 | `npm run build` | `src/rain_profile.json` + `src/rain_model.js`(분석값 → 엔진 파라미터 매핑)를 페이지에 인라인 |
+| 검증 | `npm run rain:verify` | `tools/render_rain.cjs`로 엔진을 오프라인 렌더하고 같은 분석기로 레퍼런스와 비교한 표 출력 |
+
+다른 영상을 쓰려면 `python tools/fetch_reference.py <URL> --start <초> --duration <초>` 후 분석·피팅·빌드를 다시 실행하세요.
+
+## 성능·안정성
+- 오디오 스레드(`process`)는 할당 없음: WASM 메모리 뷰를 한 번만 만들어 재사용, 파라미터는 `Float32Array` 한 개로 모아 전송
+- `latencyHint: 'playback'`로 하드웨어 버퍼를 크게 잡아 드롭아웃 방지
+- 초기화: 기능 확인 → WASM 검증 → 워클릿 등록(blob → data URL 폴백) → `ready` 핸드셰이크(타임아웃 5초) → 그래프 연결. 실패하면 정리 후 다음 클릭에서 재시도
+- 정지 시 페이드 아웃이 끝났다는 엔진 신호를 받은 뒤에만 `AudioContext`를 suspend
+- 오프라인 렌더 기준 실시간의 약 150배 속도(빗소리 포함)
 
 ## 구조
 | 파일 | 역할 |
 |---|---|
 | `src/engine.wat` | DSP 엔진 (WebAssembly 텍스트) |
 | `src/template.html` | UI와 AudioWorklet 코드 |
-| `build.cjs` | WAT → WASM 컴파일 후 `index.html`, `dist/embed.html` 생성 |
+| `src/rain_model.js` | 빗소리 분석값 → 엔진 파라미터 매핑 (페이지·렌더러 공용) |
+| `src/rain_profile.json` | 레퍼런스 분석·피팅 결과 |
+| `tools/` | 수집·분석·피팅·렌더 스크립트 |
+| `build.cjs` | WAT → WASM 컴파일, 프로파일·매핑 인라인 후 `index.html`, `dist/embed.html` 생성 |
 | `dist/engine.wasm` | 빌드된 엔진 바이너리 |
 
 ## 빌드

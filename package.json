@@ -3,6 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "description": "WebAssembly 음향 엔진 기반 화이트노이즈 플레이어",
-  "scripts": { "build": "node build.cjs" },
-  "devDependencies": { "wabt": "1.0.36" }
+  "scripts": {
+    "build": "node build.cjs",
+    "rain:fetch": "python tools/fetch_reference.py https://www.youtube.com/watch?v=b13HDIi8CjY --start 300 --duration 180",
+    "rain:analyze": "python tools/analyze_rain.py reference/rain_ref.wav",
+    "rain:fit": "npm run build && python tools/fit_rain.py reference/rain_ref.wav",
+    "rain:verify": "node tools/render_rain.cjs 60 && python tools/analyze_rain.py reference/render.wav -o reference/render_profile.json --compare src/rain_profile.json",
+    "rain": "npm run rain:fetch && npm run rain:analyze && npm run rain:fit && npm run build && npm run rain:verify"
+  },
+  "devDependencies": {
+    "wabt": "1.0.36"
+  }
 }

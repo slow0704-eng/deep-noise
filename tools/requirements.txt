@@ -1,0 +1,4 @@
+librosa>=1.0
+numpy
+scipy
+yt-dlp
