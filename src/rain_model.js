@@ -4,7 +4,7 @@
 function rainFromProfile(ref) {
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
   const d = { rate:18, tokHz:2600, tukHz:700, pTok:.5, decayMs:12, pitMul:6, pitLevel:.25, dropLevel:.8,
-              pink:.25, brown:.5, lpHz:6000, hpHz:0, deep:.15, subHz:45, swell:.1, width:1 };
+              pink:.25, brown:.5, lpHz:6000, lpSlope:1, air:0, hpHz:0, deep:.15, subHz:45, swell:.1, width:1 };
   const a = ref && ref.analysis;
   if (!a) return d;
   const t = a.transient, sp = a.spectral, be = sp.band_energy;
@@ -28,13 +28,17 @@ function rainFromProfile(ref) {
     brown:    bed * brownFrac,
     lpHz:     clamp(sp.rolloff85_hz_median * 1.3, 1500, 20000),
     lpQ:      .707,
+    air:      0,                                                        // 2.5 kHz 위 셸프 (fit에서 정함)
+    lpSlope:  1,                                                        // 24 dB/oct: 레퍼런스의 가파른 고역 감쇠
     hpHz:     sp.cumulative_1pct_hz >= 25 ? clamp(sp.cumulative_1pct_hz, 25, 400) : 0,
     deep:     clamp(be['20-60'] * 4, 0, .6),
     subHz:    45,
     swell:    clamp(a.rms.slow_cv * 2, 0, .6),                          // 느린 세기 변동 → 파도 스웰
     width:    1,
   };
-  if (f) for (const k of ['pink', 'brown', 'deep', 'dropLevel', 'pitLevel', 'lpHz', 'lpQ']) if (f[k] != null) m[k] = f[k];
+  if (f) for (const k of ['pink', 'brown', 'deep', 'dropLevel', 'pitLevel', 'lpHz', 'lpQ', 'lpSlope', 'air']) if (f[k] != null) m[k] = f[k];
+  // 피팅된 음높이 배수: 타격 순간 스펙트럼 중심 → 공진 피크로 옮긴다(슬라이더 '빗방울 음높이'는 그 위에서 가운데)
+  if (f && f.pitch) { m.tokHz *= f.pitch; m.tukHz *= f.pitch; }
   return m;
 }
 if (typeof module !== 'undefined') module.exports = { rainFromProfile };

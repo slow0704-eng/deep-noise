@@ -33,10 +33,25 @@ def fetch(url, start, duration, out):
     if meta.get("duration") and end > meta["duration"]:
         sys.exit(f"구간 {start}–{end}s가 영상 길이 {meta['duration']}s를 넘습니다.")
 
-    # yt-dlp의 --download-sections는 스트림을 실시간 속도로 읽어 느리므로,
-    # 원본 오디오를 통째로 받은 뒤 ffmpeg로 구간만 잘라 48 kHz / 16-bit / 스테레오 WAV로 변환한다.
-    src_tmpl = str(out.parent / "_src.%(ext)s")
     js = ["--js-runtimes", "node"] if shutil.which("node") else []
+    out.unlink(missing_ok=True)
+    download_and_trim(url, js, start, duration, out)
+    if not out.exists():
+        sys.exit(f"변환은 끝났지만 {out}을 찾지 못했습니다.")
+    return finish(meta, url, start, duration, out)
+
+
+def to_wav(src, start, duration, out):
+    """ffmpeg로 구간만 잘라 48 kHz / 16-bit / 스테레오 WAV로 변환."""
+    return subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                           "-ss", str(start), "-t", str(duration), "-i", str(src),
+                           "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", str(out)], timeout=600).returncode == 0
+
+
+def download_and_trim(url, js, start, duration, out):
+    # yt-dlp의 --download-sections는 스트림을 실시간 속도로 읽어 느리므로,
+    # 원본 오디오를 통째로 받은 뒤 ffmpeg로 구간만 자른다.
+    src_tmpl = str(out.parent / "_src.%(ext)s")
     subprocess.run(ytdlp_cmd() + js + ["--no-playlist", "-f", "bestaudio", "--force-overwrites",
                                        "--no-progress", "-o", src_tmpl, url], check=True)
     srcs = [p for p in out.parent.glob("_src.*") if p.suffix not in (".part", ".ytdl")]
@@ -44,14 +59,12 @@ def fetch(url, start, duration, out):
         sys.exit("원본 오디오를 받지 못했습니다.")
     src = srcs[0]
     try:
-        subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-                        "-ss", str(start), "-t", str(duration), "-i", str(src),
-                        "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", str(out)], check=True)
+        to_wav(src, start, duration, out)
     finally:
         src.unlink(missing_ok=True)
-    if not out.exists():
-        sys.exit(f"변환은 끝났지만 {out}을 찾지 못했습니다.")
 
+
+def finish(meta, url, start, duration, out):
     info = {
         "url": meta.get("webpage_url", url),
         "id": meta.get("id"),
@@ -66,6 +79,7 @@ def fetch(url, start, duration, out):
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")   # Windows 콘솔(cp949)에서도 출력이 깨지지 않게
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("url")
     ap.add_argument("--start", type=int, default=60, help="시작 시각(초). 인트로를 피하려고 기본 60초")

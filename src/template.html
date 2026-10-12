@@ -320,6 +320,7 @@ const CONTROLS = [
 
   { key:'tone',  g:'filter', label:'로우패스 컷오프', id:7, color:'#b48cff', map:logMap(120,20000), fmt:v=>hz(logMap(120,20000)(v)) },
   { key:'lpq',   g:'filter', label:'로우패스 Q (공진)', id:15, color:'#b48cff', map:Q, fmt:v=>Q(v).toFixed(2) },
+  { key:'lps',   g:'filter', label:'로우패스 기울기', id:28, color:'#b48cff', fmt:v=>Math.round(12+12*v)+' dB/oct' },
   { key:'hpf',   g:'filter', label:'하이패스 컷오프', id:16, color:'#7aa2ff', map:v=>v<.005?0:logMap(10,2000)(v), fmt:v=>v<.005?'끔':hz(logMap(10,2000)(v)) },
   { key:'hpq',   g:'filter', label:'하이패스 Q (공진)', id:17, color:'#7aa2ff', map:Q, fmt:v=>Q(v).toFixed(2) },
 
@@ -338,13 +339,14 @@ function pct(v){ return Math.round(v*100)+'%'; }
 const mapOf = c => c.map || (x => x);
 
 const BASE = { white:0, pink:0, brown:0, deep:0, rain:0, subf:.4, bass:0, tone:1, air:0, warm:0, width:.6, swell:0, rate:.4, dens:.5,
-  pit:0, tok:RAIN.pTok, pitch:.5,
+  pit:0, tok:RAIN.pTok, pitch:.5, lps:0,
   lpq:logInv(.5,10,.707), hpf:0, hpq:logInv(.5,10,.707), fin:logInv(.05,10,1.5), fout:logInv(.05,10,.8) };
 // 레퍼런스 분석 → 슬라이더 값 (빗소리 프리셋)
 function rainPreset() {
   const r = RAIN;
   return { pink:r.pink, brown:r.brown, deep:r.deep, subf:logInv(25,120,r.subHz),
-    tone:logInv(120,20000,r.lpHz), lpq:logInv(.5,10,r.lpQ), hpf:r.hpHz ? logInv(10,2000,r.hpHz) : 0,
+    tone:logInv(120,20000,r.lpHz), lpq:logInv(.5,10,r.lpQ), lps:r.lpSlope, hpf:r.hpHz ? logInv(10,2000,r.hpHz) : 0,
+    air:r.air > 0 ? r.air / 1.5 : r.air / .95,
     rain:r.dropLevel, pit:r.pitLevel, tok:r.pTok, dens:.5, pitch:.5, swell:r.swell, rate:.4, width:r.width };
 }
 const PRESETS = [
@@ -480,8 +482,8 @@ renderPreset();
   const t = a.transient, kHz = x => (x / 1000).toFixed(2);
   const tiles = [
     [RAIN.rate.toFixed(1), '/초', '빗방울 빈도 λ<br>검출기 불감 시간 보정'],
-    [kHz(RAIN.tokHz), 'kHz', '‘톡’ 중심<br>타격 순간의 스펙트럼 중심'],
-    [Math.round(RAIN.tukHz), 'Hz', '‘툭’ 중심<br>타격 순간 저역 피크'],
+    [kHz(RAIN.tokHz), 'kHz', '‘톡’ 공진 중심<br>타격 스펙트럼 × 피팅 배수'],
+    [Math.round(RAIN.tukHz), 'Hz', '‘툭’ 공진 중심<br>타격 저역 피크 × 피팅 배수'],
     [t.ioi_cv_dead_time.toFixed(2), 'CV', '방울 간격 변동계수<br>푸아송 과정이면 1'],
   ];
   box.innerHTML = tiles.map(([v, u, d]) => `<div class="stat"><b>${v}<small>${u}</small></b><span>${d}</span></div>`).join('');
@@ -491,6 +493,10 @@ renderPreset();
     src.append('레퍼런스: ');
     const link = document.createElement('a'); link.href = s.url; link.target = '_blank'; link.rel = 'noopener';
     link.textContent = s.title; src.append(link, ` · ${s.channel} · ${s.start_s}초부터 ${s.duration_s}초 분석`);
+    const q = s.selection, n = x => Number(x).toLocaleString('ko-KR');
+    if (q) src.append(document.createElement('br'),
+      `품질 선정: 조회수 ${n(q.views)} · 좋아요 ${n(q.likes)} (${(q.likes / q.views * 100).toFixed(2)}%) · 댓글 ${n(q.comment_count)} · 구독자 ${n(q.followers)}` +
+      (q.comments ? ` · 인기 댓글 긍정 ${q.comments.positive} / 불만 ${q.comments.negative}` : ''));
   }
   if (f) src.append(document.createElement('br'), `엔진 렌더 검증: 1/3옥타브 대역 오차 ${f.band_rms_error_db} dB · 타격 성분 ${Math.round(f.percussive_ratio * 100)}% (레퍼런스 ${Math.round(t.percussive_ratio * 100)}%)`);
 })();

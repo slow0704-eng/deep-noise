@@ -18,9 +18,10 @@ const e = new WebAssembly.Instance(new WebAssembly.Module(bytes),
   { m: { tan: Math.tan, sin: Math.sin, cos: Math.cos, log: Math.log, exp: Math.exp } }).exports;
 e.init(SR);
 const P = {
-  0: 1.5 * .6 * .6, 1: 0, 2: m.pink, 3: m.brown, 4: m.deep, 5: m.subHz, 6: 0, 7: m.lpHz, 8: 0, 9: m.width,
+  0: 1.5 * .6 * .6, 1: 0, 2: m.pink, 3: m.brown, 4: m.deep, 5: m.subHz, 6: 0, 7: m.lpHz, 8: m.air, 9: m.width,
   10: m.swell, 11: .1, 12: m.dropLevel, 13: m.rate, 14: 0, 15: m.lpQ, 16: m.hpHz, 17: .707,
   18: 1, 19: .005, 20: .8, 21: m.tokHz, 22: m.tukHz, 23: m.pTok, 24: m.decayMs, 25: m.pitLevel, 26: m.pitMul, 27: 1,
+  28: m.lpSlope,
 };
 if (process.argv[4]) Object.assign(P, JSON.parse(fs.readFileSync(process.argv[4], 'utf8')));
 for (const [k, v] of Object.entries(P)) e.setParam(+k, v);
