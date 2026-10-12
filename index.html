@@ -6,161 +6,257 @@
 <title>Deep Noise</title>
 <meta name="description" content="WebAssembly 음향 엔진 기반 화이트·핑크·브라운 노이즈 플레이어">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%234f6bff%22/%3E%3Cpath d=%22M6 9v6M10 6v12M14 8v8M18 10v4%22 stroke=%22white%22 stroke-width=%222%22 stroke-linecap=%22round%22/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
 :root{
-  --bg:#0b0d14; --bg2:#11141f; --panel:#151927; --line:#232a3d;
-  --text:#e7eaf3; --muted:#8c94ab; --dim:#5b6380;
-  --accent:#7aa2ff; --accent2:#b48cff; --deep:#4f6bff; --warm:#ffb38a;
-  --track:#262d42; --shadow:0 10px 40px rgba(0,0,0,.45); color-scheme:dark;
+  --bg:#000; --bg2:#0a0a0b; --panel:#161617; --panel2:#1d1d1f; --line:rgba(255,255,255,.08);
+  --text:#f5f5f7; --muted:#86868b; --dim:#6e6e73;
+  --accent:#2997ff; --accent2:#b48cff; --deep:#4f6bff; --warm:#ffb38a;
+  --track:rgba(255,255,255,.14); color-scheme:dark;
+  --gutter:22px; --ease:cubic-bezier(.28,.11,.32,1);
 }
 *{box-sizing:border-box}
 html,body{margin:0}
+html{scroll-behavior:smooth;scroll-padding-top:52px}
 body{
-  background:radial-gradient(1200px 700px at 50% -10%, #1a2140 0%, var(--bg) 60%) fixed, var(--bg);
-  color:var(--text); font-family:Pretendard,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
-  min-height:100vh; -webkit-font-smoothing:antialiased;
+  background:var(--bg); color:var(--text);
+  font-family:"SF Pro Display","SF Pro Text",-apple-system,BlinkMacSystemFont,"Pretendard Variable",Pretendard,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+  min-height:100vh; -webkit-font-smoothing:antialiased; letter-spacing:-.011em; word-break:keep-all; overflow-x:hidden;
 }
-.wrap{max-width:980px;margin:0 auto;padding:28px 16px 48px}
-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
-.brand{display:flex;align-items:center;gap:12px}
-.logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--deep),var(--accent2));
-  display:grid;place-items:center;box-shadow:0 0 24px rgba(122,162,255,.35)}
-h1{font-size:20px;margin:0;font-weight:700;letter-spacing:-.01em}
-.sub{font-size:12.5px;color:var(--muted);margin-top:2px}
-.badge{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 10px;white-space:nowrap}
-.badge b{color:var(--accent);font-weight:600}
+button{font:inherit}
 
-.hero{background:linear-gradient(180deg,rgba(21,25,39,.85),rgba(17,20,31,.85));border:1px solid var(--line);
-  border-radius:22px;padding:22px;box-shadow:var(--shadow);position:relative;overflow:hidden}
-.hero-top{display:flex;align-items:center;gap:22px}
-.play{flex:none;width:96px;height:96px;border-radius:50%;border:none;cursor:pointer;position:relative;
-  background:radial-gradient(circle at 35% 30%,#93b4ff,var(--deep) 70%);color:#fff;
-  box-shadow:0 0 0 0 rgba(122,162,255,.4),0 8px 30px rgba(79,107,255,.45);transition:transform .15s}
-.play:hover{transform:scale(1.04)} .play:active{transform:scale(.97)}
-.play svg{width:34px;height:34px}
-.play .ring{position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(122,162,255,.5);
+/* ── 글로벌 내비게이션 ─────────────────────────── */
+nav.gnav{position:sticky;top:0;z-index:10;height:48px;
+  background:rgba(22,22,23,.72);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--line)}
+nav.gnav .in{max-width:1024px;height:100%;margin:0 auto;padding:0 var(--gutter);display:flex;align-items:center;gap:28px}
+.brand{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--text);text-decoration:none;letter-spacing:-.01em}
+.brand svg{opacity:.9}
+.gnav .links{display:flex;gap:28px;margin-left:auto}
+.gnav a.l{font-size:12px;color:rgba(245,245,247,.8);text-decoration:none;transition:color .2s}
+.gnav a.l:hover{color:#fff}
+.badge{font-size:12px;color:var(--muted);white-space:nowrap}
+.badge b{font-weight:500;color:rgba(245,245,247,.8)}
+
+/* ── 공통 타이포 ─────────────────────────────── */
+.section{max-width:1024px;margin:0 auto;padding:clamp(100px,14vw,170px) var(--gutter) 0}
+.eyebrow{font-size:clamp(17px,1.7vw,21px);font-weight:600;color:var(--muted);margin:0 0 14px;letter-spacing:.004em}
+.headline{font-size:clamp(44px,7.6vw,80px);line-height:1.05;font-weight:700;letter-spacing:-.035em;margin:0}
+.lede{font-size:clamp(19px,2vw,24px);line-height:1.42;font-weight:500;color:var(--muted);margin:22px 0 0;max-width:640px;letter-spacing:-.016em}
+.lede strong{color:var(--text);font-weight:600}
+.center{text-align:center}.center .lede{margin-left:auto;margin-right:auto}
+.grad{background:linear-gradient(90deg,#7aa2ff 0%,#b48cff 55%,#ff9ccf 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ── 히어로 ─────────────────────────────────── */
+.hero{padding-top:clamp(80px,11vw,140px);text-align:center}
+.hero .headline{font-size:clamp(56px,11.5vw,128px);line-height:1;letter-spacing:-.045em}
+.hero .lede{margin:28px auto 0;max-width:700px}
+.player{margin-top:clamp(56px,7vw,80px);display:flex;flex-direction:column;align-items:center}
+.play{width:84px;height:84px;border-radius:50%;border:none;cursor:pointer;position:relative;
+  background:#f5f5f7;color:#000;display:grid;place-items:center;
+  box-shadow:0 12px 40px rgba(255,255,255,.12);transition:transform .3s var(--ease),background .3s}
+.play:hover{transform:scale(1.06);background:#fff} .play:active{transform:scale(.96)}
+.play:focus-visible{outline:2px solid var(--accent);outline-offset:6px}
+.play svg{width:30px;height:30px}
+.play .ring{position:absolute;inset:-10px;border-radius:50%;border:1.5px solid rgba(255,255,255,.55);
   opacity:0;transform:scale(1);pointer-events:none}
-.status{min-width:0;flex:1}
-.now{font-size:13px;color:var(--muted)}
-.preset-name{font-size:26px;font-weight:700;margin:4px 0 8px;letter-spacing:-.02em}
-.meta{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted)}
-.meta span{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
-.vol{display:flex;align-items:center;gap:10px;margin-top:14px}
+.now{font-size:14px;color:var(--muted);margin-top:28px;letter-spacing:.01em}
+.preset-name{font-size:clamp(28px,3.4vw,40px);font-weight:600;margin:6px 0 10px;letter-spacing:-.025em}
+.meta{display:flex;flex-wrap:wrap;justify-content:center;font-size:15px;color:var(--muted)}
+.meta span+span::before{content:"·";margin:0 .55em;color:var(--dim)}
+.vol{display:flex;align-items:center;gap:14px;margin-top:34px;width:min(340px,100%)}
 .vol svg{flex:none;color:var(--muted)}
-canvas#viz{display:block;width:100%;height:170px;margin-top:18px;border-radius:14px;background:rgba(5,7,12,.55)}
+canvas#viz{display:block;width:100%;height:clamp(180px,26vw,280px);margin-top:clamp(56px,7vw,88px);
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
+          mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+.err{display:none;margin:24px auto 0;max-width:640px;padding:14px 18px;border-radius:14px;background:rgba(255,69,58,.12);color:#ff9f97;font-size:14px}
 
-.presets{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 6px}
-.chip{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:999px;
-  padding:9px 14px;font:inherit;font-size:13.5px;cursor:pointer;transition:all .15s;display:flex;gap:6px;align-items:center}
-.chip:hover{border-color:#3a4566}
-.chip.on{background:linear-gradient(135deg,rgba(79,107,255,.35),rgba(180,140,255,.25));border-color:var(--accent)}
+/* ── 프리셋 ─────────────────────────────────── */
+.presets{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:clamp(48px,6vw,72px)}
+.chip{border:1px solid transparent;background:var(--panel);color:var(--text);border-radius:22px;
+  padding:26px 22px 22px;font-size:17px;font-weight:600;letter-spacing:-.02em;cursor:pointer;text-align:left;
+  display:flex;flex-direction:column;align-items:flex-start;gap:30px;min-height:150px;
+  transition:background .3s var(--ease),border-color .3s,transform .3s var(--ease)}
+.chip span{font-size:34px;line-height:1}
+.chip:hover{background:var(--panel2);transform:translateY(-2px)}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.chip.on{background:var(--panel2);border-color:rgba(255,255,255,.6)}
 
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px 16px 6px}
-.card h2{font-size:13px;font-weight:600;color:var(--muted);margin:0 0 12px;letter-spacing:.02em;display:flex;justify-content:space-between}
-.ctl{margin-bottom:14px}
-.ctl label{display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:7px}
-.ctl label output{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
-.ctl .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px}
+/* ── 컨트롤 ─────────────────────────────────── */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:clamp(48px,6vw,72px)}
+.card{background:var(--panel);border-radius:28px;padding:36px 30px 22px}
+.card h3{font-size:28px;line-height:1.14;font-weight:700;letter-spacing:-.03em;margin:0 0 30px}
+.card h3 small{display:block;font-size:14px;font-weight:600;color:var(--muted);letter-spacing:0;margin-bottom:8px}
+.ctl{margin-bottom:24px}
+.ctl label{display:flex;justify-content:space-between;align-items:baseline;font-size:15px;margin-bottom:10px;letter-spacing:-.01em}
+.ctl label output{color:var(--muted);font-variant-numeric:tabular-nums;font-size:14px}
+.ctl .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:9px;vertical-align:2px}
 
-input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;cursor:pointer;margin:0}
-input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:6px;
-  background:linear-gradient(90deg,var(--c,var(--accent)) var(--p,50%),var(--track) var(--p,50%))}
-input[type=range]::-moz-range-track{height:6px;border-radius:6px;background:var(--track)}
-input[type=range]::-moz-range-progress{height:6px;border-radius:6px;background:var(--c,var(--accent))}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;margin-top:-6px;
-  background:#fff;border:3px solid var(--c,var(--accent));box-shadow:0 2px 8px rgba(0,0,0,.4)}
-input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:#fff;border:3px solid var(--c,var(--accent))}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:24px;background:transparent;cursor:pointer;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:4px;
+  background:linear-gradient(90deg,var(--c,#f5f5f7) var(--p,50%),var(--track) var(--p,50%))}
+input[type=range]::-moz-range-track{height:4px;border-radius:4px;background:var(--track)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:4px;background:var(--c,#f5f5f7)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;margin-top:-9px;
+  background:#fff;border:none;box-shadow:0 1px 3px rgba(0,0,0,.4),0 4px 12px rgba(0,0,0,.35);transition:transform .2s}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.12)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:none;box-shadow:0 1px 3px rgba(0,0,0,.4),0 4px 12px rgba(0,0,0,.35)}
 input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:6px}
 
-.foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;
-  background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
-.timer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.timer .t-label{font-size:13.5px;color:var(--muted);margin-right:4px}
-.seg{border:1px solid var(--line);background:var(--bg2);color:var(--text);border-radius:10px;padding:7px 11px;font:inherit;font-size:13px;cursor:pointer}
-.seg.on{border-color:var(--accent);color:var(--accent)}
-.remain{font-size:13px;color:var(--accent);font-variant-numeric:tabular-nums}
-.hint{font-size:12px;color:var(--dim)}
-kbd{font-family:inherit;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font-size:11px}
-.err{display:none;margin-top:12px;padding:10px 12px;border-radius:10px;background:rgba(255,100,100,.12);border:1px solid rgba(255,100,100,.35);font-size:13px}
+/* ── 슬립 타이머 ─────────────────────────────── */
+.segs{display:inline-flex;flex-wrap:wrap;justify-content:center;gap:4px;padding:4px;background:var(--panel);border-radius:999px}
+.timer{margin-top:clamp(48px,6vw,64px)}
+.types{margin-top:26px}
+.types .seg{padding:9px 20px;font-size:14px}
+.seg{border:none;background:transparent;color:var(--muted);border-radius:999px;padding:12px 22px;font-size:15px;font-weight:500;cursor:pointer;transition:all .25s var(--ease)}
+.seg:hover{color:var(--text)}
+.seg.on{background:#f5f5f7;color:#000}
+.seg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.remain{display:block;margin-top:44px;font-size:clamp(64px,11vw,120px);font-weight:700;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.remain:empty{display:none}
+.remain::after{content:"후 종료";display:block;font-size:17px;font-weight:500;letter-spacing:0;color:var(--muted);margin-top:14px}
 
-@media (max-width:820px){.grid{grid-template-columns:1fr 1fr}}
-@media (max-width:560px){
+/* ── 푸터 ───────────────────────────────────── */
+footer{max-width:1024px;margin:clamp(110px,14vw,170px) auto 0;padding:20px var(--gutter) 40px;border-top:1px solid var(--line);
+  display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;font-size:12px;color:var(--dim)}
+kbd{font-family:inherit;border:1px solid rgba(255,255,255,.18);border-radius:5px;padding:1px 6px;font-size:11px;color:var(--muted)}
+
+/* ── 스크롤 등장 ─────────────────────────────── */
+.js-reveal .reveal{opacity:0;transform:translateY(48px);transition:opacity 1s var(--ease),transform 1s var(--ease)}
+.js-reveal .reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .js-reveal .reveal{opacity:1;transform:none;transition:none}
+}
+
+@media (max-width:900px){.grid{grid-template-columns:1fr 1fr}.presets{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:640px){
+  :root{--gutter:16px}
   .grid{grid-template-columns:1fr}
-  .hero-top{gap:16px} .play{width:76px;height:76px} .preset-name{font-size:21px}
-  canvas#viz{height:130px} .badge{display:none}
+  .gnav .links{display:none} .badge{margin-left:auto}
+  .chip{min-height:128px;padding:22px 18px 18px;gap:22px}
+  .card{padding:30px 22px 16px}
+  .seg{padding:10px 15px}
 }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="brand">
-      <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M2 12h2M6 8v8M10 4v16M14 7v10M18 10v4M22 12h0"/></svg></div>
-      <div><h1>Deep Noise</h1><div class="sub">깊은 저음과 넓은 음색의 노이즈 사운드스케이프</div></div>
-    </div>
-    <div class="badge">엔진 <b>WebAssembly</b> · <span id="sr">—</span></div>
-  </header>
+<nav class="gnav">
+  <div class="in">
+    <a class="brand" href="#top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 12h2M6 8v8M10 4v16M14 7v10M18 10v4M22 12h0"/></svg>Deep Noise</a>
+    <div class="links"><a class="l" href="#sound">프리셋</a><a class="l" href="#design">사운드 디자인</a><a class="l" href="#sleep">슬립 타이머</a></div>
+    <div class="badge"><b>WebAssembly</b> · <span id="sr">—</span></div>
+  </div>
+</nav>
 
-  <section class="hero">
-    <div class="hero-top">
+<main id="top">
+  <section class="section hero">
+    <p class="eyebrow">Deep Noise</p>
+    <h1 class="headline">깊은 소리.<br><span class="grad">깊은 휴식.</span></h1>
+    <p class="lede">WebAssembly 엔진이 실시간으로 빚어내는 저음과 공간감. 듣는 순간, 주변이 조용히 사라집니다.</p>
+
+    <div class="player">
       <button class="play" id="play" aria-label="재생">
         <span class="ring" id="ring"></span>
         <svg id="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
       </button>
-      <div class="status">
-        <div class="now" id="now">재생 버튼을 눌러 시작하세요</div>
-        <div class="preset-name" id="pname">깊은 우주</div>
-        <div class="meta" id="meta"></div>
-        <div class="vol">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
-          <input type="range" id="vol" min="0" max="1" step="0.001" value="0.6" aria-label="볼륨">
-        </div>
+      <div class="now" id="now">재생 버튼을 눌러 시작하세요</div>
+      <div class="preset-name" id="pname">깊은 우주</div>
+      <div class="meta" id="meta"></div>
+      <div class="segs types" id="types" role="group" aria-label="노이즈 타입"></div>
+      <div class="vol">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+        <input type="range" id="vol" min="0" max="1" step="0.001" value="0.6" aria-label="볼륨">
       </div>
     </div>
     <canvas id="viz" aria-label="실시간 스펙트럼"></canvas>
     <div class="err" id="err"></div>
   </section>
 
-  <div class="presets" id="presets"></div>
+  <section class="section" id="sound">
+    <div class="reveal">
+      <p class="eyebrow">프리셋</p>
+      <h2 class="headline">여덟 가지 분위기.<br>하나의 엔진.</h2>
+      <p class="lede">우주의 저음부터 빗소리, 비행기 객실까지. <strong>탭 한 번으로</strong> 지금 필요한 고요를 고르세요.</p>
+    </div>
+    <div class="presets reveal" id="presets"></div>
+  </section>
 
-  <div class="grid">
-    <div class="card"><h2>레이어 믹스</h2><div id="g-mix"></div></div>
-    <div class="card"><h2>음색 · 저역</h2><div id="g-tone"></div></div>
-    <div class="card"><h2>공간 · 움직임</h2><div id="g-move"></div></div>
-  </div>
+  <section class="section" id="design">
+    <div class="reveal">
+      <p class="eyebrow">사운드 디자인</p>
+      <h2 class="headline">모든 디테일을,<br>손끝에서.</h2>
+      <p class="lede">레이어, 필터, 음색, 공간을 직접 조각하세요. 슬라이더를 <strong>더블클릭</strong>하면 기본값으로 돌아갑니다.</p>
+    </div>
+    <div class="grid reveal">
+      <div class="card"><h3><small>레이어</small>섞을수록<br>깊어집니다.</h3><div id="g-mix"></div></div>
+      <div class="card"><h3><small>필터</small>깎아내고,<br>울려 퍼지게.</h3><div id="g-filter"></div></div>
+      <div class="card"><h3><small>음색 · 저역</small>몸으로 느끼는<br>저음.</h3><div id="g-tone"></div></div>
+      <div class="card"><h3><small>공간 · 엔벨로프</small>밀려오고,<br>물러갑니다.</h3><div id="g-move"></div></div>
+    </div>
+  </section>
 
-  <div class="foot">
-    <div class="timer" id="timer"><span class="t-label">슬립 타이머</span></div>
-    <span class="remain" id="remain"></span>
-    <span class="hint"><kbd>Space</kbd> 재생/정지 · 설정은 자동 저장됩니다</span>
-  </div>
-</div>
+  <section class="section center" id="sleep">
+    <div class="reveal">
+      <p class="eyebrow">슬립 타이머</p>
+      <h2 class="headline">잠들면,<br>조용히 멈춥니다.</h2>
+      <p class="lede">마지막 1분 동안 소리가 서서히 사라져, 깨지 않고 아침까지.</p>
+    </div>
+    <div class="reveal">
+      <div class="segs timer" id="timer" role="group" aria-label="슬립 타이머"></div>
+      <span class="remain" id="remain"></span>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span><kbd>Space</kbd> 재생/정지 · 설정은 자동 저장됩니다</span>
+  <span>Deep Noise · WebAssembly 음향 엔진</span>
+</footer>
+
 
 <script type="text/plain" id="worklet-src">
+// 오디오 스레드: process()에서는 객체를 만들지 않는다(GC 정지 → 드롭아웃 방지).
 class DeepNoise extends AudioWorkletProcessor {
   constructor(opts) {
     super();
-    const { bytes, params } = opts.processorOptions;
-    const mod = new WebAssembly.Module(bytes);
-    this.e = new WebAssembly.Instance(mod, { m: { tan: Math.tan, sin: Math.sin, cos: Math.cos } }).exports;
-    this.e.init(sampleRate);
-    for (const [k, v] of params) this.e.setParam(k, v);
-    this.e.snap();
-    this.L = new Float32Array(this.e.memory.buffer, 0, 128);
-    this.R = new Float32Array(this.e.memory.buffer, 512, 128);
-    this.port.onmessage = (ev) => { for (const [k, v] of ev.data) this.e.setParam(k, v); };
+    this.ok = false;
+    this.silent = true;
+    try {
+      const { bytes, params } = opts.processorOptions;
+      const mod = new WebAssembly.Module(bytes);
+      const e = this.e = new WebAssembly.Instance(mod, { m: { tan: Math.tan, sin: Math.sin, cos: Math.cos } }).exports;
+      e.init(sampleRate);
+      for (let i = 0; i < params.length; i += 2) e.setParam(params[i], params[i + 1]);
+      e.snap();
+      // 메모리는 1페이지 고정(grow 없음)이라 뷰를 한 번만 만들어 재사용한다
+      this.L = new Float32Array(e.memory.buffer, 0, 128);
+      this.R = new Float32Array(e.memory.buffer, 512, 128);
+      // 메시지: [id, value, id, value, ...] 형태의 Float32Array
+      this.port.onmessage = (ev) => { const d = ev.data; for (let i = 0; i < d.length; i += 2) e.setParam(d[i], d[i + 1]); };
+      this.ok = true;
+      this.port.postMessage({ type: 'ready' });
+    } catch (err) {
+      this.port.postMessage({ type: 'error', message: String((err && err.message) || err) });
+    }
   }
   process(_in, outs) {
-    const o = outs[0], n = o[0].length;
-    for (let off = 0; off < n; off += 128) {
-      const m = Math.min(128, n - off);
-      this.e.process(m);
-      o[0].set(this.L.subarray(0, m), off);
-      if (o[1]) o[1].set(this.R.subarray(0, m), off);
+    if (!this.ok) return false;
+    const L = outs[0][0], R = outs[0][1], n = L.length, e = this.e;
+    if (n === 128) {
+      e.process(128);
+      L.set(this.L);
+      if (R) R.set(this.R);
+    } else {
+      for (let off = 0; off < n; off += 128) {
+        const m = Math.min(128, n - off);
+        e.process(m);
+        for (let i = 0; i < m; i++) { L[off + i] = this.L[i]; if (R) R[off + i] = this.R[i]; }
+      }
     }
+    // 엔벨로프가 0에 닿거나 벗어날 때만 알린다(전환 시에만 메시지 생성)
+    const silent = e.env() === 0;
+    if (silent !== this.silent) { this.silent = silent; this.port.postMessage({ type: silent ? 'silent' : 'active' }); }
     return true;
   }
 }
@@ -168,32 +264,45 @@ registerProcessor('deep-noise', DeepNoise);
 </script>
 
 <script>
-const WASM_B64 = "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";
+const WASM_B64 = "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";
 
 // ── 파라미터 정의 ────────────────────────────────────────────
-// id: 엔진 파라미터 번호, map: UI값 → 엔진값
+// id: 엔진 파라미터 번호, map: UI값(0..1) → 엔진값, keep: 프리셋을 바꿔도 유지
 const logMap = (lo, hi) => v => lo * Math.pow(hi / lo, v);
+const logInv = (lo, hi, x) => Math.log(x / lo) / Math.log(hi / lo);
+const hz = f => f >= 1000 ? (f / 1000).toFixed(1) + ' kHz' : Math.round(f) + ' Hz';
+const sec = s => s < 1 ? Math.round(s * 100) * 10 + ' ms' : s.toFixed(1) + ' 초';
+const Q = logMap(0.5, 10), FADE = logMap(0.05, 10);
+const P_MASTER = 0, P_GATE = 18;
 const CONTROLS = [
   { key:'white', g:'mix', label:'White', id:1, color:'#e8ecff', fmt:pct },
   { key:'pink',  g:'mix', label:'Pink',  id:2, color:'#ff9ccf', fmt:pct },
   { key:'brown', g:'mix', label:'Brown', id:3, color:'#d39a6a', fmt:pct },
   { key:'deep',  g:'mix', label:'Deep 서브베이스', id:4, color:'#4f6bff', fmt:pct },
   { key:'rain',  g:'mix', label:'빗방울', id:12, color:'#6fd3e8', fmt:pct },
+  { key:'dens',  g:'mix', label:'빗방울 밀도', id:13, color:'#6fd3e8', fmt:pct },
+
+  { key:'tone',  g:'filter', label:'로우패스 컷오프', id:7, color:'#b48cff', map:logMap(120,20000), fmt:v=>hz(logMap(120,20000)(v)) },
+  { key:'lpq',   g:'filter', label:'로우패스 Q (공진)', id:15, color:'#b48cff', map:Q, fmt:v=>Q(v).toFixed(2) },
+  { key:'hpf',   g:'filter', label:'하이패스 컷오프', id:16, color:'#7aa2ff', map:v=>v<.005?0:logMap(10,2000)(v), fmt:v=>v<.005?'끔':hz(logMap(10,2000)(v)) },
+  { key:'hpq',   g:'filter', label:'하이패스 Q (공진)', id:17, color:'#7aa2ff', map:Q, fmt:v=>Q(v).toFixed(2) },
 
   { key:'subf',  g:'tone', label:'서브 주파수', id:5, color:'#4f6bff', map:logMap(25,120), fmt:v=>Math.round(logMap(25,120)(v))+' Hz' },
   { key:'bass',  g:'tone', label:'베이스 부스트', id:6, color:'#7a8cff', map:v=>v*4, fmt:v=>'+'+(20*Math.log10(1+v*4)).toFixed(1)+' dB' },
-  { key:'tone',  g:'tone', label:'톤 (로우패스)', id:7, color:'#b48cff', map:logMap(120,20000), fmt:v=>{const f=logMap(120,20000)(v);return f>=1000?(f/1000).toFixed(1)+' kHz':Math.round(f)+' Hz'} },
   { key:'air',   g:'tone', label:'Air (고역 광채)', id:8, color:'#c9b8ff', min:-1, map:v=>v>0?v*1.5:v*0.95, fmt:v=>(v>0?'+':'')+Math.round(v*100) },
   { key:'warm',  g:'tone', label:'웜스 (새츄레이션)', id:14, color:'#ffb38a', fmt:pct },
 
   { key:'width', g:'move', label:'스테레오 폭', id:9, color:'#7aa2ff', fmt:pct },
   { key:'swell', g:'move', label:'스웰 깊이 (파도)', id:10, color:'#6fd3e8', fmt:pct },
   { key:'rate',  g:'move', label:'스웰 속도', id:11, color:'#6fd3e8', map:logMap(0.03,0.35), fmt:v=>(1/logMap(0.03,0.35)(v)).toFixed(1)+' 초 주기' },
-  { key:'dens',  g:'move', label:'빗방울 밀도', id:13, color:'#6fd3e8', fmt:pct },
+  { key:'fin',   g:'move', label:'페이드 인', id:19, color:'#e8ecff', map:FADE, fmt:v=>sec(FADE(v)), keep:true },
+  { key:'fout',  g:'move', label:'페이드 아웃', id:20, color:'#e8ecff', map:FADE, fmt:v=>sec(FADE(v)), keep:true },
 ];
 function pct(v){ return Math.round(v*100)+'%'; }
+const mapOf = c => c.map || (x => x);
 
-const BASE = { white:0, pink:0, brown:0, deep:0, rain:0, subf:.4, bass:0, tone:1, air:0, warm:0, width:.6, swell:0, rate:.4, dens:.5 };
+const BASE = { white:0, pink:0, brown:0, deep:0, rain:0, subf:.4, bass:0, tone:1, air:0, warm:0, width:.6, swell:0, rate:.4, dens:.5,
+  lpq:logInv(.5,10,.707), hpf:0, hpq:logInv(.5,10,.707), fin:logInv(.05,10,1.5), fout:logInv(.05,10,.8) };
 const PRESETS = [
   { name:'깊은 우주', icon:'🌌', v:{ brown:.55, deep:.9, subf:.25, bass:.55, tone:.45, warm:.45, width:.85, swell:.3, rate:.15 } },
   { name:'화이트',   icon:'⚪', v:{ white:.9, tone:1, width:.6 } },
@@ -201,9 +310,10 @@ const PRESETS = [
   { name:'브라운',   icon:'🟤', v:{ brown:.95, bass:.25, tone:.85, width:.6 } },
   { name:'바다 파도', icon:'🌊', v:{ pink:.45, brown:.7, deep:.35, subf:.35, tone:.8, swell:.9, rate:.4, width:1, warm:.2 } },
   { name:'빗소리',   icon:'🌧️', v:{ pink:.3, brown:.35, rain:.85, dens:.7, deep:.15, tone:.92, air:.25, width:1 } },
-  { name:'비행기 객실', icon:'✈️', v:{ brown:.85, deep:.6, subf:.65, bass:.45, tone:.4, warm:.3, width:.35 } },
-  { name:'집중',     icon:'🎧', v:{ pink:.6, brown:.45, tone:.72, air:-.25, width:.7 } },
+  { name:'비행기 객실', icon:'✈️', v:{ brown:.85, deep:.6, subf:.65, bass:.45, tone:.4, warm:.3, width:.35, hpf:.22 } },
+  { name:'집중',     icon:'🎧', v:{ pink:.6, brown:.45, tone:.72, air:-.25, width:.7, hpf:.45 } },
 ];
+const TYPES = [['white','White'],['pink','Pink'],['brown','Brown']];
 
 // ── 상태 ───────────────────────────────────────────────────
 const LS = 'deepnoise.v1';
@@ -212,21 +322,44 @@ try { const s = JSON.parse(localStorage.getItem(LS)); if (s && s.v) state = { ..
 const save = () => { try { localStorage.setItem(LS, JSON.stringify(state)); } catch {} };
 
 const $ = id => document.getElementById(id);
-let ctx, node, out, analyser, playing = false, raf = 0;
+let ctx = null, node = null, out = null, analyser = null, enginePromise = null;
+let playing = false, engineActive = false, raf = 0;
 
 const masterOf = v => 1.5 * v * v;
 function engineParams() {
-  const p = [[0, masterOf(state.vol)]];
-  for (const c of CONTROLS) p.push([c.id, (c.map || (x=>x))(state.v[c.key])]);
+  const p = [P_MASTER, masterOf(state.vol), P_GATE, 0];
+  for (const c of CONTROLS) p.push(c.id, mapOf(c)(state.v[c.key]));
   return p;
 }
-function send(pairs) { if (node) node.port.postMessage(pairs); }
+
+// ── 파라미터 전송: 같은 틱의 변경을 하나의 Float32Array로 모아 보낸다 ──
+const pending = new Map();
+let flushTimer = 0;
+function setParam(id, v) {
+  pending.set(id, v);
+  if (!flushTimer) flushTimer = setTimeout(flush, 16);
+}
+function flush() {
+  flushTimer = 0;
+  if (!node || !pending.size) return;
+  const msg = new Float32Array(pending.size * 2);
+  let i = 0;
+  for (const [id, v] of pending) { msg[i++] = id; msg[i++] = v; }
+  pending.clear();
+  node.port.postMessage(msg);
+}
+function setParamNow(id, v) { pending.set(id, v); clearTimeout(flushTimer); flush(); }
 
 // ── UI 빌드 ────────────────────────────────────────────────
 const inputs = {};
 function paint(inp) {
   const min = +inp.min, max = +inp.max;
   inp.style.setProperty('--p', ((inp.value - min) / (max - min) * 100) + '%');
+}
+function setCtl(key, v) {
+  const c = inputs[key];
+  state.v[key] = v; c.inp.value = v; c.upd();
+  setParam(c.def.id, mapOf(c.def)(v));
 }
 for (const c of CONTROLS) {
   const wrap = document.createElement('div'); wrap.className = 'ctl';
@@ -239,16 +372,16 @@ for (const c of CONTROLS) {
   const upd = () => { o.textContent = c.fmt(+inp.value); paint(inp); };
   inp.addEventListener('input', () => {
     state.v[c.key] = +inp.value; upd();
-    send([[c.id, (c.map || (x=>x))(+inp.value)]]);
-    if (state.preset) { state.preset = null; renderPreset(); }
-    save();
+    setParam(c.id, mapOf(c)(+inp.value));
+    if (state.preset && !c.keep) state.preset = null;
+    renderPreset(); save();
   });
   inp.addEventListener('dblclick', () => { inp.value = BASE[c.key]; inp.dispatchEvent(new Event('input')); });
-  upd(); inputs[c.key] = { inp, upd };
+  upd(); inputs[c.key] = { inp, upd, def:c };
   $('g-' + c.g).appendChild(wrap);
 }
 const vol = $('vol'); vol.value = state.vol; paint(vol);
-vol.addEventListener('input', () => { state.vol = +vol.value; paint(vol); send([[0, masterOf(state.vol)]]); save(); });
+vol.addEventListener('input', () => { state.vol = +vol.value; paint(vol); setParam(P_MASTER, masterOf(state.vol)); save(); });
 
 const presetBox = $('presets');
 for (const p of PRESETS) {
@@ -258,10 +391,24 @@ for (const p of PRESETS) {
   presetBox.appendChild(b);
 }
 function applyPreset(p) {
-  state.preset = p.name; state.v = { ...BASE, ...p.v };
-  for (const c of CONTROLS) { inputs[c.key].inp.value = state.v[c.key]; inputs[c.key].upd(); }
-  send(engineParams().slice(1)); renderPreset(); save();
+  const next = { ...BASE, ...p.v };
+  for (const c of CONTROLS) setCtl(c.key, c.keep ? state.v[c.key] : next[c.key]);
+  state.preset = p.name; renderPreset(); save();
 }
+
+// 노이즈 타입 전환: 현재 레벨을 유지한 채 White/Pink/Brown 중 하나로 교체.
+// 엔진의 파라미터 스무딩(약 70ms)이 크로스페이드 역할을 해 클릭 없이 바뀐다.
+const typeBox = $('types');
+for (const [key, label] of TYPES) {
+  const b = document.createElement('button'); b.className = 'seg'; b.dataset.key = key; b.textContent = label;
+  b.onclick = () => {
+    const level = Math.max(...TYPES.map(([k]) => state.v[k])) || .8;
+    for (const [k] of TYPES) setCtl(k, k === key ? level : 0);
+    state.preset = null; renderPreset(); save();
+  };
+  typeBox.appendChild(b);
+}
+
 function renderPreset() {
   for (const b of presetBox.children) b.classList.toggle('on', b.dataset.name === state.preset);
   $('pname').textContent = state.preset || '사용자 설정';
@@ -269,49 +416,118 @@ function renderPreset() {
   const layers = [['White',v.white],['Pink',v.pink],['Brown',v.brown],['Deep',v.deep],['Rain',v.rain]].filter(x=>x[1]>.02);
   m.push(layers.length ? layers.map(x=>x[0]).join(' + ') : '무음');
   if (v.deep > .02) m.push('서브 ' + Math.round(logMap(25,120)(v.subf)) + ' Hz');
+  if (v.hpf >= .005) m.push('HPF ' + hz(logMap(10,2000)(v.hpf)));
   if (v.swell > .05) m.push('파도 스웰');
   $('meta').innerHTML = m.map(s => `<span>${s}</span>`).join('');
+  const on = TYPES.filter(([k]) => v[k] > .02);
+  for (const b of typeBox.children) {
+    const sel = on.length === 1 && on[0][0] === b.dataset.key;
+    b.classList.toggle('on', sel); b.setAttribute('aria-pressed', sel);
+  }
 }
 renderPreset();
 
-// ── 오디오 ─────────────────────────────────────────────────
+function showError(msg) { const el = $('err'); el.textContent = msg; el.style.display = msg ? 'block' : 'none'; }
+
+// ── 오디오 엔진 초기화 파이프라인 ───────────────────────────
+// 1) 기능 확인 → 2) WASM 디코드·검증 → 3) AudioContext(사용자 제스처 안에서 동기 생성)
+// → 4) 워클릿 모듈 등록 → 5) 노드 생성 + ready 핸드셰이크 → 6) 그래프 연결
+// 실패하면 자원을 정리하고 다음 클릭에서 처음부터 다시 시도한다.
+class EngineError extends Error {}
+
 function b64ToBytes(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u.buffer; }
 
-async function boot() {
-  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint:'playback' });
-  const src = $('worklet-src').textContent;
-  const url = URL.createObjectURL(new Blob([src], { type:'application/javascript' }));
-  try { await ctx.audioWorklet.addModule(url); }
-  catch { await ctx.audioWorklet.addModule("data:application/javascript;base64," + btoa(unescape(encodeURIComponent(src)))); }
+function loadEngine() {
+  if (!enginePromise) enginePromise = createEngine().catch(err => { teardown(); enginePromise = null; throw err; });
+  return enginePromise;
+}
+
+async function createEngine() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) throw new EngineError('이 브라우저는 Web Audio API를 지원하지 않습니다.');
+  if (typeof WebAssembly !== 'object') throw new EngineError('이 브라우저는 WebAssembly를 지원하지 않습니다.');
+  const bytes = b64ToBytes(WASM_B64);
+  if (!WebAssembly.validate(bytes)) throw new EngineError('엔진 바이너리가 손상되었습니다. 다시 빌드해 주세요.');
+
+  // latencyHint 'playback': 지연보다 안정성을 우선해 하드웨어 버퍼를 크게 잡는다
+  ctx = new AC({ latencyHint:'playback' });
+  const resumed = ctx.resume();     // 제스처가 유효할 때 동기적으로 호출(Safari)
+  if (!ctx.audioWorklet) throw new EngineError('AudioWorklet을 사용할 수 없습니다. HTTPS 또는 localhost에서 열어 주세요.');
+
+  await registerWorklet(ctx);
   node = new AudioWorkletNode(ctx, 'deep-noise', {
     numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2],
-    processorOptions:{ bytes:b64ToBytes(WASM_B64), params:engineParams() },
+    processorOptions:{ bytes, params:engineParams() },
   });
-  out = ctx.createGain(); out.gain.value = 0;
+  await Promise.all([handshake(node, 5000), resumed]);
+
+  out = ctx.createGain();           // 슬립 타이머의 긴 페이드 전용
   analyser = ctx.createAnalyser(); analyser.fftSize = 8192; analyser.smoothingTimeConstant = .82;
   node.connect(out); out.connect(analyser); analyser.connect(ctx.destination);
+  fbuf = new Float32Array(analyser.frequencyBinCount); tbuf = new Float32Array(analyser.fftSize);
+  layoutViz();
   $('sr').textContent = (ctx.sampleRate/1000).toFixed(1) + ' kHz';
 }
 
-async function toggle() {
-  try {
-    if (!ctx) await boot();
-    if (!playing) {
-      await ctx.resume();
-      out.gain.cancelScheduledValues(ctx.currentTime);
-      out.gain.setTargetAtTime(1, ctx.currentTime, 0.4);
-      playing = true;
-    } else {
-      out.gain.cancelScheduledValues(ctx.currentTime);
-      out.gain.setTargetAtTime(0, ctx.currentTime, 0.15);
-      playing = false;
-      setTimeout(() => { if (!playing) ctx.suspend(); }, 900);
-    }
-    renderPlay();
-  } catch (e) {
-    const el = $('err'); el.style.display = 'block';
-    el.textContent = '오디오 엔진을 시작하지 못했습니다: ' + e.message + ' (최신 Chrome/Edge/Firefox/Safari를 사용해 주세요)';
+async function registerWorklet(ctx) {
+  const src = $('worklet-src').textContent;
+  const url = URL.createObjectURL(new Blob([src], { type:'application/javascript' }));
+  try { await ctx.audioWorklet.addModule(url); }
+  catch {
+    // 일부 환경(file://, 엄격한 CSP)은 blob: 모듈을 막는다 → data: URL로 재시도
+    try { await ctx.audioWorklet.addModule('data:application/javascript;base64,' + btoa(unescape(encodeURIComponent(src)))); }
+    catch (err) { throw new EngineError('오디오 워클릿을 불러오지 못했습니다: ' + err.message); }
+  } finally { URL.revokeObjectURL(url); }
+}
+
+function handshake(node, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new EngineError('오디오 엔진 초기화 시간이 초과되었습니다.')), ms);
+    node.onprocessorerror = () => { clearTimeout(timer); reject(new EngineError('오디오 프로세서가 중단되었습니다.')); };
+    node.port.onmessage = ev => {
+      const d = ev.data;
+      if (d.type === 'ready') { clearTimeout(timer); node.port.onmessage = onEngineMessage; resolve(); }
+      else if (d.type === 'error') { clearTimeout(timer); reject(new EngineError('WASM 엔진 생성 실패: ' + d.message)); }
+    };
+  });
+}
+
+function onEngineMessage(ev) {
+  const t = ev.data.type;
+  if (t === 'active') engineActive = true;
+  else if (t === 'silent') {
+    engineActive = false;
+    if (!playing && ctx) ctx.suspend();   // 페이드 아웃이 끝난 뒤에만 정지
   }
+}
+
+function teardown() {
+  if (node) { node.port.onmessage = null; node.onprocessorerror = null; try { node.disconnect(); } catch {} }
+  if (ctx) ctx.close().catch(() => {});
+  ctx = node = out = analyser = null; engineActive = false;
+}
+
+async function toggle() {
+  const want = !playing;
+  if (want && ctx) ctx.resume();     // 제스처 안에서 먼저 깨운다
+  try {
+    await loadEngine();
+    playing = want;
+    if (playing) {
+      out.gain.cancelScheduledValues(ctx.currentTime);
+      out.gain.setValueAtTime(1, ctx.currentTime);
+      await ctx.resume();
+      setParamNow(P_GATE, 1);         // 페이드 인은 엔진 엔벨로프가 담당
+    } else {
+      setParamNow(P_GATE, 0);         // 페이드 아웃 후 'silent' 메시지에서 suspend
+    }
+    showError('');
+  } catch (e) {
+    playing = false;
+    showError(e instanceof EngineError ? e.message
+      : '오디오 엔진을 시작하지 못했습니다: ' + e.message + ' (최신 Chrome/Edge/Firefox/Safari를 사용해 주세요)');
+  }
+  renderPlay();
 }
 function renderPlay() {
   $('ico').innerHTML = playing
@@ -335,55 +551,81 @@ if ('mediaSession' in navigator) {
 }
 
 // ── 스펙트럼 시각화 ────────────────────────────────────────
+// 버퍼·빈 매핑·그라데이션은 크기가 바뀔 때만 만들고, 프레임 루프에서는 할당하지 않는다.
 const cv = $('viz'), g = cv.getContext('2d');
-let fbuf, tbuf, smooth = null;
-function draw() {
-  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
-  if (cv.width !== W*dpr || cv.height !== H*dpr) { cv.width = W*dpr; cv.height = H*dpr; }
-  g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
-  const fMin = 20, fMax = 20000, xOf = f => Math.log(f/fMin)/Math.log(fMax/fMin)*W;
+const F_MIN = 20, F_MAX = 20000;
+const GRID = [[30,'30'],[60,'60'],[125,'125'],[250,'250'],[500,'500'],[1000,'1k'],[2000,'2k'],[4000,'4k'],[8000,'8k'],[16000,'16k']];
+const ring = $('ring');
+let W = 0, H = 0, cols = 0, binA, binB, smooth, ys, grad, fbuf, tbuf;
 
-  // 그리드
-  g.font = '10px Pretendard, sans-serif'; g.fillStyle = '#4a5370'; g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 1;
-  for (const [f, t] of [[30,'30'],[60,'60'],[125,'125'],[250,'250'],[500,'500'],[1000,'1k'],[2000,'2k'],[4000,'4k'],[8000,'8k'],[16000,'16k']]) {
-    const x = Math.round(xOf(f)) + .5; g.beginPath(); g.moveTo(x,0); g.lineTo(x,H); g.stroke(); g.fillText(t, x+3, H-6);
-  }
-  if (!analyser) { raf = 0; return; }
-  const n = analyser.frequencyBinCount;
-  if (!fbuf) { fbuf = new Float32Array(n); tbuf = new Float32Array(analyser.fftSize); }
-  analyser.getFloatFrequencyData(fbuf);
-  const binHz = ctx.sampleRate / analyser.fftSize, cols = Math.max(64, Math.floor(W/3));
-  if (!smooth || smooth.length !== cols) smooth = new Float32Array(cols).fill(-120);
-  const pts = [];
-  for (let i = 0; i < cols; i++) {
-    const f0 = fMin*Math.pow(fMax/fMin, i/cols), f1 = fMin*Math.pow(fMax/fMin, (i+1)/cols);
-    let a = Math.floor(f0/binHz), b = Math.max(a+1, Math.ceil(f1/binHz)), s = 0, c = 0;
-    for (let k = a; k < b && k < n; k++) { s += Math.pow(10, fbuf[k]/10); c++; }
-    const db = c ? 10*Math.log10(s/c + 1e-12) : -120;
-    smooth[i] += (db - smooth[i]) * .35;
-    const y = H - 14 - Math.max(0, Math.min(1, (smooth[i] + 110) / 85)) * (H - 24);
-    pts.push([ (i+.5)/cols*W, y ]);
-  }
-  const grad = g.createLinearGradient(0,0,W,0);
+function layoutViz() {
+  const dpr = window.devicePixelRatio || 1;
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cols = Math.max(64, Math.floor(W / 3));
+  smooth = new Float32Array(cols).fill(-120); ys = new Float32Array(cols);
+  grad = g.createLinearGradient(0, 0, W, 0);
   grad.addColorStop(0,'#4f6bff'); grad.addColorStop(.35,'#7aa2ff'); grad.addColorStop(.7,'#b48cff'); grad.addColorStop(1,'#ff9ccf');
-  g.beginPath(); g.moveTo(0,H);
-  for (const [x,y] of pts) g.lineTo(x,y);
-  g.lineTo(W,H); g.closePath();
+  if (!analyser) return;
+  const binHz = ctx.sampleRate / analyser.fftSize, n = analyser.frequencyBinCount;
+  binA = new Int32Array(cols); binB = new Int32Array(cols);
+  for (let i = 0; i < cols; i++) {
+    const f0 = F_MIN * Math.pow(F_MAX / F_MIN, i / cols), f1 = F_MIN * Math.pow(F_MAX / F_MIN, (i + 1) / cols);
+    const a = Math.min(n - 1, Math.floor(f0 / binHz));
+    binA[i] = a; binB[i] = Math.min(n, Math.max(a + 1, Math.ceil(f1 / binHz)));
+  }
+}
+
+function drawGrid() {
+  const k = W / Math.log(F_MAX / F_MIN);
+  g.font = '11px -apple-system, Pretendard, sans-serif'; g.fillStyle = '#6e6e73'; g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 1;
+  for (let j = 0; j < GRID.length; j++) {
+    const x = Math.round(Math.log(GRID[j][0] / F_MIN) * k) + .5;
+    g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); g.fillText(GRID[j][1], x + 3, H - 6);
+  }
+}
+
+function draw() {
+  g.clearRect(0, 0, W, H);
+  drawGrid();
+  if (!analyser) { raf = 0; return; }
+  analyser.getFloatFrequencyData(fbuf);
+  for (let i = 0; i < cols; i++) {
+    let s = 0;
+    for (let k = binA[i]; k < binB[i]; k++) s += Math.pow(10, fbuf[k] / 10);
+    const db = 10 * Math.log10(s / (binB[i] - binA[i]) + 1e-12);
+    smooth[i] += (db - smooth[i]) * .35;
+    ys[i] = H - 14 - Math.max(0, Math.min(1, (smooth[i] + 110) / 85)) * (H - 24);
+  }
+  const dx = W / cols;
+  g.beginPath(); g.moveTo(0, H);
+  for (let i = 0; i < cols; i++) g.lineTo((i + .5) * dx, ys[i]);
+  g.lineTo(W, H); g.closePath();
   g.globalAlpha = .28; g.fillStyle = grad; g.fill(); g.globalAlpha = 1;
-  g.beginPath(); pts.forEach(([x,y],i) => i ? g.lineTo(x,y) : g.moveTo(x,y));
-  g.strokeStyle = grad; g.lineWidth = 2; g.stroke();
+  g.beginPath(); g.moveTo(.5 * dx, ys[0]);
+  for (let i = 1; i < cols; i++) g.lineTo((i + .5) * dx, ys[i]);
+  g.strokeStyle = grad; g.lineWidth = 1.5; g.stroke();
 
-  // 재생 버튼 링: 저역 에너지에 반응
+  // 재생 버튼 링: 출력 에너지에 반응
   analyser.getFloatTimeDomainData(tbuf);
-  let e = 0; for (let i = 0; i < tbuf.length; i++) e += tbuf[i]*tbuf[i];
-  const rms = Math.sqrt(e / tbuf.length), ring = $('ring');
-  ring.style.opacity = Math.min(.9, rms * 4); ring.style.transform = `scale(${1 + Math.min(.25, rms * 1.2)})`;
+  let e = 0; for (let i = 0; i < tbuf.length; i++) e += tbuf[i] * tbuf[i];
+  const rms = Math.sqrt(e / tbuf.length);
+  ring.style.opacity = Math.min(.9, rms * 4);
+  ring.style.transform = 'scale(' + (1 + Math.min(.25, rms * 1.2)).toFixed(3) + ')';
 
-  if (playing || out.gain.value > .001) raf = requestAnimationFrame(draw);
+  if (playing || engineActive) raf = requestAnimationFrame(draw);
   else { raf = 0; ring.style.opacity = 0; }
 }
-draw();
-window.addEventListener('resize', () => { if (!raf) draw(); });
+layoutViz(); draw();
+window.addEventListener('resize', () => { layoutViz(); if (!raf) draw(); });
+
+// ── 스크롤 등장 ────────────────────────────────────────────
+if ('IntersectionObserver' in window) {
+  document.documentElement.classList.add('js-reveal');
+  const io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }, { rootMargin:'0px 0px -12% 0px' });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+}
 
 // ── 슬립 타이머 ────────────────────────────────────────────
 let timerEnd = 0, timerId = 0;
@@ -394,6 +636,8 @@ for (const m of [0, 15, 30, 60, 90]) {
   b.onclick = () => {
     for (const x of timerBox.querySelectorAll('.seg')) x.classList.toggle('on', x === b);
     clearInterval(timerId); timerEnd = m ? Date.now() + m*60000 : 0; $('remain').textContent = '';
+    // 페이드 도중 타이머를 바꾸면 볼륨을 부드럽게 원래대로
+    if (out) { out.gain.cancelScheduledValues(ctx.currentTime); out.gain.setTargetAtTime(1, ctx.currentTime, .3); }
     if (m) { if (!playing) toggle(); timerId = setInterval(tick, 1000); tick(); }
   };
   timerBox.appendChild(b);
@@ -407,9 +651,9 @@ function tick() {
     return;
   }
   // 마지막 60초 동안 서서히 페이드아웃
-  if (left < 60000 && playing) out.gain.setTargetAtTime(Math.max(0.0001, left/60000), ctx.currentTime, .5);
+  if (left < 60000 && playing && out) out.gain.setTargetAtTime(Math.max(0.0001, left/60000), ctx.currentTime, .5);
   const s = Math.ceil(left/1000);
-  $('remain').textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} 후 종료`;
+  $('remain').textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 }
 </script>
 </body>

@@ -1,8 +1,10 @@
 ;; ─────────────────────────────────────────────────────────────
 ;;  Deep Noise Engine — WebAssembly DSP core
 ;;  레이어: White / Pink / Brown / Deep(서브 베이스) / Rain(빗방울)
-;;  체인:  믹스 → 베이스 셸프 → 로우패스(+스웰 변조) → Air → 스웰 AM
-;;         → 웜스(새츄레이션) → DC 차단 → 마스터 → 세이프티 클리퍼
+;;  체인:  믹스 → 베이스 셸프 → 로우패스(Q, +스웰 변조) → 하이패스(Q) → Air
+;;         → 스웰 AM → 웜스(새츄레이션) → DC 차단 → 엔벨로프·마스터 → 세이프티 클리퍼
+;;  필터는 TPT 상태변수필터(Simper): RBJ 바이쿼드와 같은 2차 응답이면서
+;;  컷오프를 실시간으로 움직여도 안정적이고 지퍼 노이즈가 적다.
 ;; ─────────────────────────────────────────────────────────────
 (module
   (import "m" "tan" (func $tan (param f64) (result f64)))
@@ -19,7 +21,13 @@
   ;;
   ;; 채널 상태 오프셋: 0 rng, 4..28 pink b0..b6, 32 brown,
   ;; 36/40 bass svf, 44/48 lp svf, 52 air lp, 56 dc x1, 60 dc y1,
-  ;; 64/68 rain svf, 72 rain env, 80 rain rng
+  ;; 64/68 rain svf, 72 rain env, 80 rain rng, 88/92 hp svf
+  ;; 필터 계수: 2048/2064 deep, 2080 bass, 2096 lp, 2128 rain, 2144 hp
+  ;;
+  ;; 파라미터: 0 마스터, 1-4 white/pink/brown/deep, 5 서브 주파수, 6 베이스,
+  ;; 7 LP 컷오프, 8 air, 9 폭, 10/11 스웰 깊이/속도, 12/13 빗방울 레벨/밀도,
+  ;; 14 웜스, 15 LP Q, 16 HP 컷오프(<10.5Hz면 바이패스), 17 HP Q,
+  ;; 18 게이트(0/1, 스무딩 없이 목표값 사용), 19 페이드 인(초), 20 페이드 아웃(초)
 
   (global $sr     (mut f32) (f32.const 48000))
   (global $lo     (mut f32) (f32.const 0))
@@ -32,6 +40,10 @@
   (global $s1 (mut f32) (f32.const 0)) (global $c1 (mut f32) (f32.const 1))
   (global $s2 (mut f32) (f32.const 0)) (global $c2 (mut f32) (f32.const 1))
   (global $swCur  (mut f32) (f32.const 1))
+  (global $lpG    (mut f32) (f32.const 1))   ;; 공진 보정 게인
+  (global $hpG    (mut f32) (f32.const 1))
+  (global $hpOn   (mut i32) (i32.const 0))
+  (global $envL   (mut f32) (f32.const 0))   ;; 앰플리튜드 엔벨로프 0..1
 
   ;; 레이어별 RMS 보정 게인
   (global $GW f32 (f32.const 0.30))
@@ -66,7 +78,7 @@
     (local.set $fc (f32.max (local.get $fc) (f32.const 5)))
     (local.set $g (f32.demote_f64 (call $tan (f64.promote_f32
       (f32.div (f32.mul (f32.const 3.14159265) (local.get $fc)) (global.get $sr))))))
-    (local.set $k (f32.div (f32.const 1) (local.get $q)))
+    (local.set $k (f32.div (f32.const 1) (f32.max (local.get $q) (f32.const 0.3))))
     (local.set $a1 (f32.div (f32.const 1)
       (f32.add (f32.const 1) (f32.mul (local.get $g) (f32.add (local.get $g) (local.get $k))))))
     (f32.store (local.get $c) (local.get $a1))
@@ -112,7 +124,15 @@
     (global.set $dcR (f32.sub (f32.const 1)
       (f32.div (f32.mul (f32.const 6.2831853) (f32.const 12)) (global.get $sr))))
     (global.set $s1 (f32.const 0)) (global.set $c1 (f32.const 1))
-    (global.set $s2 (f32.const 0.6)) (global.set $c2 (f32.const 0.8)))
+    (global.set $s2 (f32.const 0.6)) (global.set $c2 (f32.const 0.8))
+    (global.set $envL (f32.const 0)))
+
+  ;; 현재 엔벨로프 레벨 (0이면 완전 무음)
+  (func (export "env") (result f32) (global.get $envL))
+
+  ;; Q가 높을수록 공진 피크가 커지므로 레벨을 낮춰 헤드룸 확보
+  (func $qcomp (param $q f32) (result f32)
+    (f32.div (f32.const 1) (f32.sqrt (f32.max (f32.const 1) (f32.mul (local.get $q) (f32.const 1.4142136))))))
 
   (func (export "setParam") (param $id i32) (param $v f32)
     (f32.store (i32.add (i32.const 3072) (i32.shl (local.get $id) (i32.const 2))) (local.get $v)))
@@ -128,7 +148,7 @@
       (br $l))))
 
   ;; ── 채널 1샘플 ─────────────────────────────────────────────
-  (func $chan (param $b i32) (param $wC f32) (param $deep f32) (param $amp f32) (param $out i32)
+  (func $chan (param $b i32) (param $wC f32) (param $deep f32) (param $amp f32) (param $g f32) (param $out i32)
     (local $wX f32) (local $w f32) (local $pink f32) (local $br f32)
     (local $env f32) (local $r f32) (local $x f32) (local $a f32) (local $wv f32) (local $y f32)
 
@@ -181,7 +201,14 @@
 
     ;; 메인 로우패스 (톤)
     (call $svf (i32.add (local.get $b) (i32.const 44)) (i32.const 2096) (local.get $x))
-    (local.set $x (global.get $lo))
+    (local.set $x (f32.mul (global.get $lo) (global.get $lpG)))
+
+    ;; 하이패스: hp = x − k·bp − lo (상태는 항상 갱신해 바이패스 전환 시 튀지 않게)
+    (call $svf (i32.add (local.get $b) (i32.const 88)) (i32.const 2144) (local.get $x))
+    (if (global.get $hpOn)
+      (then (local.set $x (f32.mul (global.get $hpG)
+        (f32.sub (f32.sub (local.get $x) (f32.mul (f32.load (i32.const 2156)) (global.get $bp)))
+                 (global.get $lo))))))
 
     ;; Air: x + g·HP1(x)
     (local.set $a (f32.load offset=52 (local.get $b)))
@@ -204,7 +231,7 @@
     (f32.store offset=56 (local.get $b) (local.get $x))
     (f32.store offset=60 (local.get $b) (local.get $y))
 
-    (f32.store (local.get $out) (call $sat (f32.mul (local.get $y) (call $p (i32.const 0))))))
+    (f32.store (local.get $out) (call $sat (f32.mul (local.get $y) (local.get $g)))))
 
   ;; ── 블록 처리 ───────────────────────────────────────────────
   (func (export "process") (param $n i32)
@@ -212,8 +239,10 @@
     (local $wC f32) (local $dl f32) (local $deep f32) (local $amp f32) (local $sw f32)
     (local $depth f32) (local $d f32) (local $cs1 f32) (local $sn1 f32) (local $cs2 f32) (local $sn2 f32)
     (local $t f32) (local $mag f32)
+    (local $m f32) (local $mst f32) (local $e f32) (local $einc f32) (local $edec f32) (local $gate f32) (local $g f32)
 
-    ;; 파라미터 스무딩 (블록당)
+    ;; 파라미터 스무딩 (블록당). 마스터는 블록 안에서 샘플 단위로 보간한다.
+    (local.set $m (call $p (i32.const 0)))
     (local.set $id (i32.const 0))
     (block $d (loop $l
       (br_if $d (i32.ge_u (local.get $id) (i32.const 32)))
@@ -224,6 +253,22 @@
         (f32.add (local.get $cur) (f32.mul (f32.sub (local.get $tgt) (local.get $cur)) (f32.const 0.04))))
       (local.set $id (i32.add (local.get $id) (i32.const 1)))
       (br $l)))
+    (local.set $mst (f32.div (f32.sub (call $p (i32.const 0)) (local.get $m))
+                             (f32.convert_i32_u (local.get $n))))
+
+    ;; 엔벨로프: 게이트 목표값(스무딩 전)과 페이드 시간 → 샘플당 증감량
+    (local.set $gate (f32.load (i32.const 3144)))
+    (local.set $einc (f32.div (f32.const 1)
+      (f32.mul (f32.max (call $p (i32.const 19)) (f32.const 0.005)) (global.get $sr))))
+    (local.set $edec (f32.div (f32.const 1)
+      (f32.mul (f32.max (call $p (i32.const 20)) (f32.const 0.005)) (global.get $sr))))
+    (local.set $e (global.get $envL))
+
+    ;; 하이패스 계수
+    (call $svfcoef (i32.const 2144) (call $p (i32.const 16)) (call $p (i32.const 17)))
+    (global.set $hpOn (f32.gt (call $p (i32.const 16)) (f32.const 10.5)))
+    (global.set $hpG (call $qcomp (call $p (i32.const 17))))
+    (global.set $lpG (call $qcomp (call $p (i32.const 15))))
 
     ;; 스테레오 폭
     (local.set $t (f32.min (f32.const 1) (f32.max (f32.const 0) (call $p (i32.const 9)))))
@@ -260,7 +305,7 @@
       (f32.mul (call $p (i32.const 7))
         (f32.sub (f32.const 1) (f32.mul (f32.mul (local.get $depth) (f32.const 0.6))
                                         (f32.sub (f32.const 1) (global.get $swCur)))))
-      (f32.const 0.707))
+      (call $p (i32.const 15)))
 
     (local.set $i (i32.const 0))
     (block $done (loop $loop
@@ -290,11 +335,21 @@
       (local.set $amp (f32.sub (f32.const 1) (f32.mul (f32.mul (local.get $depth) (f32.const 0.85))
                                                       (f32.sub (f32.const 1) (local.get $sw)))))
 
+      ;; 엔벨로프(선형 램프 → smoothstep 곡선) × 보간된 마스터
+      (if (f32.gt (local.get $gate) (f32.const 0.5))
+        (then (local.set $e (f32.min (f32.const 1) (f32.add (local.get $e) (local.get $einc)))))
+        (else (local.set $e (f32.max (f32.const 0) (f32.sub (local.get $e) (local.get $edec))))))
+      (local.set $m (f32.add (local.get $m) (local.get $mst)))
+      (local.set $g (f32.mul (local.get $m)
+        (f32.mul (f32.mul (local.get $e) (local.get $e))
+                 (f32.sub (f32.const 3) (f32.mul (f32.const 2) (local.get $e))))))
+
       (local.set $addr (i32.shl (local.get $i) (i32.const 2)))
-      (call $chan (i32.const 1024) (local.get $wC) (local.get $deep) (local.get $amp) (local.get $addr))
-      (call $chan (i32.const 1152) (local.get $wC) (local.get $deep) (local.get $amp)
+      (call $chan (i32.const 1024) (local.get $wC) (local.get $deep) (local.get $amp) (local.get $g) (local.get $addr))
+      (call $chan (i32.const 1152) (local.get $wC) (local.get $deep) (local.get $amp) (local.get $g)
                   (i32.add (local.get $addr) (i32.const 512)))
 
       (local.set $i (i32.add (local.get $i) (i32.const 1)))
-      (br $loop))))
+      (br $loop)))
+    (global.set $envL (local.get $e)))
 )
