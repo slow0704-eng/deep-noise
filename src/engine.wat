@@ -1,6 +1,10 @@
 ;; ─────────────────────────────────────────────────────────────
 ;;  Deep Noise Engine — WebAssembly DSP core
-;;  레이어: White / Pink / Brown / Deep(서브 베이스) / Rain(빗방울)
+;;  레이어: White / Pink / Brown / Deep(서브 베이스) / 빗방울(푸아송 드롭 + 잔빗소리)
+;;  빗소리 모델은 Andy Farnell "Designing Sound"의 절차적 접근을 따른다:
+;;  지속적인 배경(브라운·핑크 노이즈 베드) + 푸아송 과정으로 도착하는 개별 방울.
+;;  방울 간격은 지수분포(−ln U / λ)로 뽑고, 방울마다 크기·종류(유리 '톡' / 잎 '툭')·
+;;  공진 밴드패스 주파수와 Q·스테레오 위치를 무작위로 정해 짧은 노이즈 임펄스를 울린다.
 ;;  체인:  믹스 → 베이스 셸프 → 로우패스(Q, +스웰 변조) → 하이패스(Q) → Air
 ;;         → 스웰 AM → 웜스(새츄레이션) → DC 차단 → 엔벨로프·마스터 → 세이프티 클리퍼
 ;;  필터는 TPT 상태변수필터(Simper): RBJ 바이쿼드와 같은 2차 응답이면서
@@ -10,31 +14,41 @@
   (import "m" "tan" (func $tan (param f64) (result f64)))
   (import "m" "sin" (func $sin (param f64) (result f64)))
   (import "m" "cos" (func $cos (param f64) (result f64)))
+  (import "m" "log" (func $log (param f64) (result f64)))
+  (import "m" "exp" (func $exp (param f64) (result f64)))
   (memory (export "memory") 1)
 
   ;; ── 메모리 맵 ──────────────────────────────────────────────
   ;; 0     출력 L (128 f32)      512   출력 R (128 f32)
   ;; 1024  채널 L 상태 (128B)    1152  채널 R 상태 (128B)
-  ;; 1280  딥 레이어 상태        1344  공통 RNG
+  ;; 1280  딥 레이어 상태        1344  공통 RNG     1348  방울 스케줄러 RNG
   ;; 2048  필터 계수 (각 16B: a1 a2 a3 k)
   ;; 3072  파라미터 목표값       3200  파라미터 현재값(스무딩)
+  ;; 4096  방울 보이스 풀 16 × 64B (고정 할당, 라운드로빈 재사용)
+  ;;       0/4 svf, 8 env, 12 감쇠, 16..28 svf 계수, 32 게인, 36/40 팬 L/R, 44 활성, 48 rng
   ;;
   ;; 채널 상태 오프셋: 0 rng, 4..28 pink b0..b6, 32 brown,
   ;; 36/40 bass svf, 44/48 lp svf, 52 air lp, 56 dc x1, 60 dc y1,
-  ;; 64/68 rain svf, 72 rain env, 80 rain rng, 88/92 hp svf
-  ;; 필터 계수: 2048/2064 deep, 2080 bass, 2096 lp, 2128 rain, 2144 hp
+  ;; 64/68 잔빗소리 svf, 72 env, 76 다음 트리거까지 샘플, 80 rng, 88/92 hp svf
+  ;; 필터 계수: 2048/2064 deep, 2080 bass, 2096 lp, 2128 잔빗소리, 2144 hp
   ;;
   ;; 파라미터: 0 마스터, 1-4 white/pink/brown/deep, 5 서브 주파수, 6 베이스,
-  ;; 7 LP 컷오프, 8 air, 9 폭, 10/11 스웰 깊이/속도, 12/13 빗방울 레벨/밀도,
+  ;; 7 LP 컷오프, 8 air, 9 폭, 10/11 스웰 깊이/속도, 12 방울 레벨, 13 방울 빈도 λ(회/초),
   ;; 14 웜스, 15 LP Q, 16 HP 컷오프(<10.5Hz면 바이패스), 17 HP Q,
-  ;; 18 게이트(0/1, 스무딩 없이 목표값 사용), 19 페이드 인(초), 20 페이드 아웃(초)
+  ;; 18 게이트(0/1, 스무딩 없이 목표값 사용), 19 페이드 인(초), 20 페이드 아웃(초),
+  ;; 21 '톡' 중심(Hz), 22 '툭' 중심(Hz), 23 톡 비율, 24 '툭' 임펄스 감쇠(ms),
+  ;; 25 잔빗소리 레벨, 26 잔빗소리 빈도 배수(λ 대비), 27 방울 음높이 배수
 
   (global $sr     (mut f32) (f32.const 48000))
   (global $lo     (mut f32) (f32.const 0))
   (global $bp     (mut f32) (f32.const 0))
   (global $mA     (mut f32) (f32.const 1))   ;; 공통 노이즈 비율
   (global $mB     (mut f32) (f32.const 0))   ;; 채널 독립 노이즈 비율
-  (global $rainP  (mut f32) (f32.const 0))
+  (global $dropT  (mut f32) (f32.const 0))   ;; 다음 방울까지 남은 샘플
+  (global $vi     (mut i32) (i32.const 0))   ;; 다음에 쓸 보이스
+  (global $dL     (mut f32) (f32.const 0))
+  (global $dR     (mut f32) (f32.const 0))
+  (global $pitD   (mut f32) (f32.const 0.993))
   (global $airC   (mut f32) (f32.const 0.3))
   (global $dcR    (mut f32) (f32.const 0.998))
   (global $s1 (mut f32) (f32.const 0)) (global $c1 (mut f32) (f32.const 1))
@@ -50,7 +64,8 @@
   (global $GP f32 (f32.const 0.95))
   (global $GB f32 (f32.const 0.95))
   (global $GD f32 (f32.const 1.5))
-  (global $GR f32 (f32.const 4.5))
+  (global $GR f32 (f32.const 16))    ;; 방울 (보이스 출력이 좁은 대역이라 큼)
+  (global $GT f32 (f32.const 4.5))   ;; 잔빗소리
 
   (func $p (param $id i32) (result f32)
     (f32.load (i32.add (i32.const 3200) (i32.shl (local.get $id) (i32.const 2)))))
@@ -112,13 +127,25 @@
       (i32.store (local.get $i) (i32.const 0))
       (local.set $i (i32.add (local.get $i) (i32.const 4)))
       (br $l)))
+    (local.set $i (i32.const 4096))
+    (block $d (loop $l
+      (br_if $d (i32.ge_u (local.get $i) (i32.const 5120)))
+      (i32.store (local.get $i) (i32.const 0))
+      (local.set $i (i32.add (local.get $i) (i32.const 4)))
+      (br $l)))
     (i32.store (i32.const 1024) (i32.const 0x2545F491))
     (i32.store (i32.const 1152) (i32.const 0x9E3779B9))
     (i32.store (i32.const 1104) (i32.const 0x7F4A7C15))
     (i32.store (i32.const 1232) (i32.const 0x1B873593))
     (i32.store (i32.const 1344) (i32.const 0x68E31DA4))
+    (i32.store (i32.const 1348) (i32.const 0x3C6EF372))
+    (f32.store (i32.const 1100) (f32.const 1000))   ;; 잔빗소리 첫 트리거 L/R 엇갈리게
+    (f32.store (i32.const 1228) (f32.const 1700))
+    (global.set $dropT (f32.const 2000)) (global.set $vi (i32.const 0))
+    ;; 잔빗소리 버스트 감쇠 ≈ 3 ms
+    (global.set $pitD (f32.demote_f64 (call $exp (f64.promote_f32
+      (f32.div (f32.const -333) (local.get $sr))))))
     (call $svfcoef (i32.const 2080) (f32.const 90) (f32.const 0.7))     ;; bass shelf
-    (call $svfcoef (i32.const 2128) (f32.const 2600) (f32.const 0.6))   ;; rain bandpass
     (global.set $airC (f32.min (f32.const 1)
       (f32.div (f32.mul (f32.const 6.2831853) (f32.const 2500)) (global.get $sr))))
     (global.set $dcR (f32.sub (f32.const 1)
@@ -147,10 +174,96 @@
       (local.set $i (i32.add (local.get $i) (i32.const 1)))
       (br $l))))
 
+  ;; ── 빗방울: 푸아송 스케줄러 + 보이스 풀 ─────────────────────
+  (func $u01 (param $a i32) (result f32)
+    (f32.mul (f32.add (call $rand (local.get $a)) (f32.const 1)) (f32.const 0.5)))
+
+  ;; 푸아송 과정의 도착 간격: −ln(1−U)·sr/λ  (지수분포, 샘플 단위)
+  (func $interval (param $a i32) (param $rate f32) (result f32)
+    (if (result f32) (f32.lt (local.get $rate) (f32.const 0.01))
+      (then (f32.const 1e9))
+      (else (f32.max (f32.const 1)
+        (f32.div (f32.mul (f32.neg (f32.demote_f64 (call $log (f64.promote_f32
+                   (f32.sub (f32.const 1) (call $u01 (local.get $a)))))))
+                          (global.get $sr))
+                 (local.get $rate))))))
+
+  (func $pow2 (param $x f32) (result f32)
+    (f32.demote_f64 (call $exp (f64.promote_f32 (f32.mul (local.get $x) (f32.const 0.6931472))))))
+
+  ;; 방울 하나를 가장 오래된 보이스에 할당
+  (func $trigger
+    (local $v i32) (local $sz f32) (local $fc f32) (local $q f32) (local $tau f32) (local $pan f32) (local $g f32)
+    (local.set $v (i32.add (i32.const 4096) (i32.shl (global.get $vi) (i32.const 6))))
+    (global.set $vi (i32.and (i32.add (global.get $vi) (i32.const 1)) (i32.const 15)))
+    ;; 크기: U² 분포 — 작은 방울이 많고 큰 방울은 드물다
+    (local.set $sz (call $u01 (i32.const 1348)))
+    (local.set $sz (f32.mul (local.get $sz) (local.get $sz)))
+    (if (f32.lt (call $u01 (i32.const 1348)) (call $p (i32.const 23)))
+      (then ;; '톡': 유리에 닿는 단단한 타격 — 높은 Q, 아주 짧은 임펄스
+        (local.set $fc (f32.mul (call $p (i32.const 21)) (call $pow2 (f32.mul (f32.const 0.4) (call $rand (i32.const 1348))))))
+        (local.set $q (f32.add (f32.const 6) (f32.mul (f32.const 14) (call $u01 (i32.const 1348)))))
+        (local.set $tau (f32.mul (call $p (i32.const 24)) (f32.const 0.15)))
+        (local.set $g (f32.const 1)))
+      (else ;; '툭': 잎·지붕에 닿는 둔탁한 타격 — 낮은 Q, 긴 임펄스
+        (local.set $fc (f32.mul (call $p (i32.const 22)) (call $pow2 (f32.mul (f32.const 0.8) (call $rand (i32.const 1348))))))
+        (local.set $q (f32.add (f32.const 1.2) (f32.mul (f32.const 1.8) (call $u01 (i32.const 1348)))))
+        (local.set $tau (call $p (i32.const 24)))
+        (local.set $g (f32.const 0.8))))
+    ;; 큰 방울일수록 낮게 울린다
+    (local.set $fc (f32.mul (local.get $fc)
+      (f32.mul (call $p (i32.const 27)) (f32.sub (f32.const 1.25) (f32.mul (f32.const 0.5) (local.get $sz))))))
+    (call $svfcoef (i32.add (local.get $v) (i32.const 16)) (local.get $fc) (local.get $q))
+    (f32.store offset=8 (local.get $v) (f32.const 1))
+    (f32.store offset=12 (local.get $v) (f32.demote_f64 (call $exp (f64.promote_f32
+      (f32.div (f32.const -1000) (f32.mul (f32.max (local.get $tau) (f32.const 0.2)) (global.get $sr)))))))
+    ;; 게인: 진폭 × k(BP 피크를 1로) × √Q(좁은 대역의 에너지 손실 보상)
+    (f32.store offset=32 (local.get $v)
+      (f32.mul (f32.mul (local.get $g) (f32.add (f32.const 0.25) (f32.mul (f32.const 0.75) (local.get $sz))))
+               (f32.mul (f32.load offset=28 (local.get $v)) (f32.sqrt (local.get $q)))))
+    ;; 등전력 팬
+    (local.set $pan (f32.mul (f32.const 0.85) (call $rand (i32.const 1348))))
+    (f32.store offset=36 (local.get $v) (f32.sqrt (f32.mul (f32.const 0.5) (f32.sub (f32.const 1) (local.get $pan)))))
+    (f32.store offset=40 (local.get $v) (f32.sqrt (f32.mul (f32.const 0.5) (f32.add (f32.const 1) (local.get $pan)))))
+    (i32.store offset=48 (local.get $v) (i32.or (i32.load (i32.const 1348)) (i32.const 1)))
+    (i32.store offset=44 (local.get $v) (i32.const 1)))
+
+  ;; 1샘플: 스케줄러 진행 + 활성 보이스 합산 → $dL, $dR
+  (func $drops
+    (local $v i32) (local $env f32) (local $y f32) (local $l f32) (local $r f32)
+    (global.set $dropT (f32.sub (global.get $dropT) (f32.const 1)))
+    (block $d (loop $l
+      (br_if $d (f32.gt (global.get $dropT) (f32.const 0)))
+      (call $trigger)
+      (global.set $dropT (f32.add (global.get $dropT) (call $interval (i32.const 1348) (call $p (i32.const 13)))))
+      (br $l)))
+    (local.set $v (i32.const 4096))
+    (block $d (loop $l
+      (br_if $d (i32.ge_u (local.get $v) (i32.const 5120)))
+      (if (i32.load offset=44 (local.get $v))
+        (then
+          (local.set $env (f32.load offset=8 (local.get $v)))
+          (f32.store offset=8 (local.get $v) (f32.mul (local.get $env) (f32.load offset=12 (local.get $v))))
+          (call $svf (local.get $v) (i32.add (local.get $v) (i32.const 16))
+                (f32.mul (local.get $env) (call $rand (i32.add (local.get $v) (i32.const 48)))))
+          (local.set $y (f32.mul (global.get $bp) (f32.load offset=32 (local.get $v))))
+          (local.set $l (f32.add (local.get $l) (f32.mul (local.get $y) (f32.load offset=36 (local.get $v)))))
+          (local.set $r (f32.add (local.get $r) (f32.mul (local.get $y) (f32.load offset=40 (local.get $v)))))
+          ;; 임펄스와 공진 꼬리가 모두 사라지면 보이스 해제
+          (if (i32.and (f32.lt (local.get $env) (f32.const 1e-4))
+                       (f32.lt (f32.add (f32.abs (global.get $bp)) (f32.abs (global.get $lo))) (f32.const 1e-6)))
+            (then (i32.store offset=44 (local.get $v) (i32.const 0))
+                  (f32.store (local.get $v) (f32.const 0))
+                  (f32.store offset=4 (local.get $v) (f32.const 0))))))
+      (local.set $v (i32.add (local.get $v) (i32.const 64)))
+      (br $l)))
+    (global.set $dL (local.get $l))
+    (global.set $dR (local.get $r)))
+
   ;; ── 채널 1샘플 ─────────────────────────────────────────────
-  (func $chan (param $b i32) (param $wC f32) (param $deep f32) (param $amp f32) (param $g f32) (param $out i32)
+  (func $chan (param $b i32) (param $wC f32) (param $deep f32) (param $drop f32) (param $amp f32) (param $g f32) (param $out i32)
     (local $wX f32) (local $w f32) (local $pink f32) (local $br f32)
-    (local $env f32) (local $r f32) (local $x f32) (local $a f32) (local $wv f32) (local $y f32)
+    (local $env f32) (local $cnt f32) (local $pit f32) (local $x f32) (local $a f32) (local $wv f32) (local $y f32)
 
     (local.set $wX (call $rand (local.get $b)))
     (local.set $w (f32.add (f32.mul (local.get $wC) (global.get $mA))
@@ -176,16 +289,21 @@
     (f32.store offset=32 (local.get $b) (local.get $br))
     (local.set $br (f32.mul (local.get $br) (f32.const 3.5)))
 
-    ;; Rain: 랜덤 트리거 → 짧은 엔벨로프의 노이즈 버스트 → 밴드패스
-    (local.set $env (f32.mul (f32.load offset=72 (local.get $b)) (f32.const 0.993)))
-    (local.set $r (f32.mul (f32.add (call $rand (i32.add (local.get $b) (i32.const 80))) (f32.const 1)) (f32.const 0.5)))
-    (if (f32.lt (local.get $r) (global.get $rainP))
-      (then
-        (local.set $a (f32.add (f32.const 0.25)
-          (f32.mul (f32.const 0.75) (f32.abs (call $rand (i32.add (local.get $b) (i32.const 80)))))))
-        (local.set $env (f32.max (local.get $env) (f32.mul (local.get $a) (local.get $a))))))
+    ;; 잔빗소리: 채널마다 독립된 푸아송 과정 → 3 ms 노이즈 버스트 → 밴드패스
+    (local.set $env (f32.mul (f32.load offset=72 (local.get $b)) (global.get $pitD)))
+    (local.set $cnt (f32.sub (f32.load offset=76 (local.get $b)) (f32.const 1)))
+    (block $d (loop $l
+      (br_if $d (f32.gt (local.get $cnt) (f32.const 0)))
+      (local.set $a (f32.add (f32.const 0.25)
+        (f32.mul (f32.const 0.75) (call $u01 (i32.add (local.get $b) (i32.const 80))))))
+      (local.set $env (f32.max (local.get $env) (f32.mul (local.get $a) (local.get $a))))
+      (local.set $cnt (f32.add (local.get $cnt) (call $interval (i32.add (local.get $b) (i32.const 80))
+        (f32.mul (call $p (i32.const 13)) (call $p (i32.const 26))))))
+      (br $l)))
     (f32.store offset=72 (local.get $b) (local.get $env))
+    (f32.store offset=76 (local.get $b) (local.get $cnt))
     (call $svf (i32.add (local.get $b) (i32.const 64)) (i32.const 2128) (f32.mul (local.get $env) (local.get $wX)))
+    (local.set $pit (f32.mul (f32.mul (call $p (i32.const 25)) (global.get $GT)) (global.get $bp)))
 
     ;; 믹스
     (local.set $x (f32.add
@@ -193,7 +311,8 @@
                (f32.mul (f32.mul (call $p (i32.const 2)) (global.get $GP)) (local.get $pink)))
       (f32.add (f32.mul (f32.mul (call $p (i32.const 3)) (global.get $GB)) (local.get $br))
                (f32.add (local.get $deep)
-                        (f32.mul (f32.mul (call $p (i32.const 12)) (global.get $GR)) (global.get $bp))))))
+                        (f32.add (local.get $pit)
+                                 (f32.mul (f32.mul (call $p (i32.const 12)) (global.get $GR)) (local.get $drop)))))))
 
     ;; 베이스 셸프: x + g·LP(x)
     (call $svf (i32.add (local.get $b) (i32.const 36)) (i32.const 2080) (local.get $x))
@@ -275,10 +394,9 @@
     (global.set $mA (f32.sqrt (f32.sub (f32.const 1) (local.get $t))))
     (global.set $mB (f32.sqrt (local.get $t)))
 
-    ;; 빗방울 밀도
-    (local.set $t (call $p (i32.const 13)))
-    (global.set $rainP (f32.mul (f32.mul (local.get $t) (local.get $t))
-      (f32.div (f32.const 300) (global.get $sr))))
+    ;; 잔빗소리 밴드패스: '톡'과 같은 대역(유리 표면의 잘게 부서지는 타격)
+    (call $svfcoef (i32.const 2128)
+      (f32.mul (call $p (i32.const 21)) (call $p (i32.const 27))) (f32.const 3))
 
     ;; 딥 레이어 필터 (2단 LP, 약간의 공진)
     (call $svfcoef (i32.const 2048) (call $p (i32.const 5)) (f32.const 1.1))
@@ -344,9 +462,10 @@
         (f32.mul (f32.mul (local.get $e) (local.get $e))
                  (f32.sub (f32.const 3) (f32.mul (f32.const 2) (local.get $e))))))
 
+      (call $drops)
       (local.set $addr (i32.shl (local.get $i) (i32.const 2)))
-      (call $chan (i32.const 1024) (local.get $wC) (local.get $deep) (local.get $amp) (local.get $g) (local.get $addr))
-      (call $chan (i32.const 1152) (local.get $wC) (local.get $deep) (local.get $amp) (local.get $g)
+      (call $chan (i32.const 1024) (local.get $wC) (local.get $deep) (global.get $dL) (local.get $amp) (local.get $g) (local.get $addr))
+      (call $chan (i32.const 1152) (local.get $wC) (local.get $deep) (global.get $dR) (local.get $amp) (local.get $g)
                   (i32.add (local.get $addr) (i32.const 512)))
 
       (local.set $i (i32.add (local.get $i) (i32.const 1)))

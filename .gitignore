@@ -1,2 +1,5 @@
 node_modules/
 .playwright-mcp/
+reference/
+tools/.venv/
+__pycache__/

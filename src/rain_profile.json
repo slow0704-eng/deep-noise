@@ -1,0 +1,94 @@
+{
+  "source": {
+    "url": "https://www.youtube.com/watch?v=b13HDIi8CjY",
+    "id": "b13HDIi8CjY",
+    "title": "Rain on Glass Window, No Thunder - 1 hour rain sounds for sleep, study and relax",
+    "channel": "ΣHAANTI - Virtual Environment",
+    "start_s": 300,
+    "duration_s": 180
+  },
+  "analysis": {
+    "file": "rain_ref.wav",
+    "sample_rate": 48000,
+    "duration_s": 180.0,
+    "spectral": {
+      "centroid_hz": {
+        "mean": 1307.9,
+        "median": 1299.8,
+        "p10": 951.5,
+        "p90": 1665.1
+      },
+      "rolloff85_hz_median": 2554.7,
+      "slope_db_per_oct": -6.19,
+      "cumulative_1pct_hz": 23.4,
+      "band_energy": {
+        "20-60": 0.0816,
+        "60-250": 0.1352,
+        "250-1000": 0.2609,
+        "1000-4000": 0.4421,
+        "4000-8000": 0.0247,
+        "8000-16000": 0.0068,
+        "16000-24000": 0.0009
+      }
+    },
+    "bed": {
+      "slope_db_per_oct": -6.3,
+      "centroid_hz": 945.2,
+      "rolloff85_hz": 2437.5,
+      "band_energy": {
+        "20-60": 0.2335,
+        "60-250": 0.1356,
+        "250-1000": 0.1825,
+        "1000-4000": 0.3116,
+        "4000-8000": 0.0159,
+        "8000-16000": 0.0045,
+        "16000-24000": 0.0007
+      }
+    },
+    "rms": {
+      "mean": 0.04813,
+      "std": 0.02071,
+      "mean_db": -26.35,
+      "cv": 0.43,
+      "slow_cv": 0.068
+    },
+    "transient": {
+      "percussive_ratio": 0.537,
+      "onset_count": 2305,
+      "onset_rate_hz": 12.81,
+      "detector_dead_time_ms": 32.0,
+      "rate_corrected_hz": 21.7,
+      "ioi_ms_mean": 78.1,
+      "ioi_cv": 0.517,
+      "poisson_ks": 0.336,
+      "poisson_ks_dead_time": 0.123,
+      "ioi_cv_dead_time": 0.876,
+      "centroid_hz": 1849.9,
+      "low_peak_hz": 679.7,
+      "high_low_ratio": 1.063,
+      "band_energy": {
+        "20-60": 0.0118,
+        "60-250": 0.0741,
+        "250-1000": 0.2584,
+        "1000-4000": 0.585,
+        "4000-8000": 0.0449,
+        "8000-16000": 0.0129,
+        "16000-24000": 0.0009
+      },
+      "decay_ms_median": 53.3
+    }
+  },
+  "fit": {
+    "lpHz": 10218.8,
+    "lpQ": 0.707,
+    "band_rms_error_db": 1.83,
+    "percussive_ratio": 0.551,
+    "render_rms": 0.1169,
+    "render_peak": 0.831,
+    "pink": 0.497,
+    "brown": 0.892,
+    "deep": 0.125,
+    "dropLevel": 0.468,
+    "pitLevel": 0.261
+  }
+}
