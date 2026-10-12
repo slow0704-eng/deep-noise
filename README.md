@@ -2,6 +2,8 @@
 
 WebAssembly 음향 엔진으로 깊은 저음과 넓은 음색의 노이즈를 만들어 재생하는 웹 플레이어입니다.
 
+**▶ 바로 듣기: https://slow0704-eng.github.io/deep-noise/**
+
 `index.html` 하나에 엔진(WASM, base64 인라인)과 UI가 모두 들어 있어 브라우저에서 바로 열 수 있습니다.
 `file://`로 열었을 때 소리가 나지 않으면 `python -m http.server`로 띄운 뒤 `http://localhost:8000`에서 여세요.
 
