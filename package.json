@@ -2,14 +2,24 @@
   "name": "deep-noise",
   "version": "1.0.0",
   "private": true,
-  "description": "WebAssembly 음향 엔진 기반 화이트노이즈 플레이어",
+  "description": "WebAssembly 음향 엔진 기반 화이트노이즈·장면(빗소리·기차·벽난로) 플레이어",
   "scripts": {
     "build": "node build.cjs",
-    "rain:fetch": "python tools/select_reference.py \"rain on window sounds no thunder\" --fetch --start 300 --duration 180",
-    "rain:analyze": "python tools/analyze_rain.py reference/rain_ref.wav",
-    "rain:fit": "npm run build && python tools/fit_rain.py reference/rain_ref.wav",
-    "rain:verify": "node tools/render_rain.cjs 60 && python tools/analyze_rain.py reference/render.wav -o reference/render_profile.json --compare src/rain_profile.json",
-    "rain": "npm run rain:fetch && npm run rain:analyze && npm run rain:fit && npm run build && npm run rain:verify"
+    "rain:fetch": "python tools/select_reference.py --scene rain --fetch --start 300 --duration 180",
+    "rain:analyze": "python tools/analyze_reference.py reference/rain_ref.wav -o src/profiles/rain.json",
+    "rain:fit": "npm run build && python tools/fit_reference.py rain",
+    "rain:verify": "node tools/render_scene.cjs rain 60 && python tools/analyze_reference.py reference/rain_render.wav -o reference/rain_render_profile.json --compare src/profiles/rain.json",
+    "rain": "npm run rain:fetch && npm run rain:analyze && npm run rain:fit && npm run build && npm run rain:verify",
+    "train:fetch": "python tools/select_reference.py --scene train --fetch --start 300 --duration 180",
+    "train:analyze": "python tools/analyze_reference.py reference/train_ref.wav -o src/profiles/train.json",
+    "train:fit": "npm run build && python tools/fit_reference.py train",
+    "train:verify": "node tools/render_scene.cjs train 60 && python tools/analyze_reference.py reference/train_render.wav -o reference/train_render_profile.json --compare src/profiles/train.json",
+    "train": "npm run train:fetch && npm run train:analyze && npm run train:fit && npm run build && npm run train:verify",
+    "fire:fetch": "python tools/select_reference.py --scene fire --fetch --start 300 --duration 180",
+    "fire:analyze": "python tools/analyze_reference.py reference/fire_ref.wav -o src/profiles/fire.json",
+    "fire:fit": "npm run build && python tools/fit_reference.py fire",
+    "fire:verify": "node tools/render_scene.cjs fire 60 && python tools/analyze_reference.py reference/fire_render.wav -o reference/fire_render_profile.json --compare src/profiles/fire.json",
+    "fire": "npm run fire:fetch && npm run fire:analyze && npm run fire:fit && npm run build && npm run fire:verify"
   },
   "devDependencies": {
     "wabt": "1.0.36"

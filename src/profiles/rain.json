@@ -62,8 +62,14 @@
       "std": 0.06355,
       "mean_db": -18.42,
       "cv": 0.53,
-      "slow_cv": 0.094
+      "slow_cv": 0.094,
+      "fast_cv": 0.073
     },
+    "periodicity": {
+      "period_s": 0.491,
+      "strength": 0.088
+    },
+    "stereo_corr": 0.32,
     "transient": {
       "percussive_ratio": 0.636,
       "onset_count": 1236,
@@ -77,6 +83,7 @@
       "ioi_cv_dead_time": 0.943,
       "centroid_hz": 3872.5,
       "low_peak_hz": 562.5,
+      "sub_peak_hz": 70.3,
       "high_low_ratio": 8.689,
       "band_energy": {
         "20-60": 0.0029,
@@ -96,14 +103,15 @@
     "lpSlope": 0,
     "air": 0.3,
     "pitch": 0.5,
-    "band_rms_error_db": 1.9,
-    "percussive_ratio": 0.607,
-    "render_rms": 0.0594,
-    "render_peak": 0.525,
+    "subHz": 35,
+    "band_rms_error_db": 1.82,
+    "percussive_ratio": 0.59,
+    "render_rms": 0.0656,
+    "render_peak": 0.477,
     "pink": 1.0,
     "brown": 0.0,
-    "deep": 0.237,
-    "dropLevel": 0.454,
-    "pitLevel": 0.162
+    "deep": 0.371,
+    "dropLevel": 0.587,
+    "pitLevel": 0.175
   }
 }

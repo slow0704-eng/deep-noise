@@ -1,10 +1,14 @@
 ;; ─────────────────────────────────────────────────────────────
 ;;  Deep Noise Engine — WebAssembly DSP core
 ;;  레이어: White / Pink / Brown / Deep(서브 베이스) / 빗방울(푸아송 드롭 + 잔빗소리)
+;;          / 기차(레일 이음매 덜컹) / 벽난로(군집 푸아송 타닥·펑 + 불꽃 일렁임)
 ;;  빗소리 모델은 Andy Farnell "Designing Sound"의 절차적 접근을 따른다:
 ;;  지속적인 배경(브라운·핑크 노이즈 베드) + 푸아송 과정으로 도착하는 개별 방울.
 ;;  방울 간격은 지수분포(−ln U / λ)로 뽑고, 방울마다 크기·종류(유리 '톡' / 잎 '툭')·
 ;;  공진 밴드패스 주파수와 Q·스테레오 위치를 무작위로 정해 짧은 노이즈 임펄스를 울린다.
+;;  세 장면의 개별 사건은 같은 이벤트 보이스 풀(노이즈 임펄스 → 공진 BP)을 쓰고 스케줄러만 다르다:
+;;    빗방울 = 푸아송 과정, 기차 = 대차 2개 × 차축 2개가 레일 이음매를 지나는 주기 패턴,
+;;    벽난로 = 군집 푸아송(Neyman–Scott: 군집 도착은 푸아송, 군집 안의 타닥은 짧은 지수 간격).
 ;;  체인:  믹스 → 베이스 셸프 → 로우패스(Q, +스웰 변조) → 하이패스(Q) → Air
 ;;         → 스웰 AM → 웜스(새츄레이션) → DC 차단 → 엔벨로프·마스터
 ;;         → 스테레오 링크 룩어헤드 피크 리미터(−2 dBFS) → 소프트 니 클리퍼(0 dBFS 천장)
@@ -24,11 +28,12 @@
   ;; 1024  채널 L 상태 (128B)    1152  채널 R 상태 (128B)
   ;; 1280  딥 레이어 상태        1344  공통 RNG     1348  방울 스케줄러 RNG
   ;; 2048  필터 계수 (각 16B: a1 a2 a3 k)
-  ;; 3072  파라미터 목표값       3200  파라미터 현재값(스무딩)
-  ;; 4096  방울 보이스 풀 16 × 128B (고정 할당, 라운드로빈 재사용)
+  ;; 3072  파라미터 목표값 (64 f32)   3328  파라미터 현재값(스무딩)
+  ;; 1352  불꽃 일렁임 RNG
+  ;; 4096  이벤트 보이스 풀 32 × 128B (고정 할당, 라운드로빈 재사용)
   ;;       공통: 16..28 svf 계수, 32 게인, 36/40 팬 L/R, 44 활성, 52 감쇠
   ;;       채널별(L = +0, R = +64): 0/4 svf, 8 원 엔벨로프, 12 어택 스무딩 엔벨로프, 48 rng, 56 시작 지연(샘플)
-  ;; 6144  리미터 룩어헤드 L (64 f32)   6400  리미터 룩어헤드 R (64 f32)
+  ;; 8192  리미터 룩어헤드 L (64 f32)   8448  리미터 룩어헤드 R (64 f32)
   ;;
   ;; 채널 상태 오프셋: 0 rng, 4..28 pink b0..b6, 32 brown,
   ;; 36/40 bass svf, 44/48 lp svf, 52 air lp, 56 dc x1, 60 dc y1,
@@ -42,7 +47,10 @@
   ;; 18 게이트(0/1, 스무딩 없이 목표값 사용), 19 페이드 인(초), 20 페이드 아웃(초),
   ;; 21 '톡' 중심(Hz), 22 '툭' 중심(Hz), 23 톡 비율, 24 '툭' 임펄스 감쇠(ms),
   ;; 25 잔빗소리 레벨, 26 잔빗소리 빈도 배수(λ 대비), 27 방울 음높이 배수,
-  ;; 28 LP 기울기(0 = 12 dB/oct, 1 = 24 dB/oct, 사이는 크로스페이드)
+  ;; 28 LP 기울기(0 = 12 dB/oct, 1 = 24 dB/oct, 사이는 크로스페이드),
+  ;; 29 기차 덜컹 레벨, 30 이음매 주기(초), 31 덜컹 저역 '쿵' 중심(Hz), 32 금속성 '칵' 중심(Hz), 33 덜컹 음높이 배수,
+  ;; 34 벽난로 타닥 레벨, 35 군집 도착 빈도(/초), 36 군집당 평균 타닥 수, 37 타닥 중심(Hz),
+  ;; 38 '펑' 비율, 39 불꽃 일렁임 깊이, 40 '펑' 중심(Hz)
 
   (global $sr     (mut f32) (f32.const 48000))
   (global $lo     (mut f32) (f32.const 0))
@@ -81,9 +89,22 @@
   (global $GD f32 (f32.const 1.5))
   (global $GR f32 (f32.const 16))    ;; 방울 (보이스 출력이 좁은 대역이라 큼)
   (global $GT f32 (f32.const 4.5))   ;; 잔빗소리
+  (global $GC f32 (f32.const 16))    ;; 기차 덜컹
+  (global $GK f32 (f32.const 16))    ;; 벽난로 타닥
+
+  ;; 기차 스케줄러: 다음 타격까지 샘플, 패턴 위치(0..3), 속도 흔들림
+  (global $ckT (mut f32) (f32.const 0)) (global $ckI (mut i32) (i32.const 0)) (global $ckD (mut f32) (f32.const 0))
+  ;; 벽난로 스케줄러: 다음 군집까지 샘플, 군집에 남은 타닥 수, 다음 타닥까지 샘플, 군집 위치
+  (global $crT (mut f32) (f32.const 0)) (global $crN (mut i32) (i32.const 0))
+  (global $crG (mut f32) (f32.const 0)) (global $crP (mut f32) (f32.const 0))
+  ;; 불꽃 일렁임: 2단 평활 노이즈(≈2.5 Hz) → 분산 1로 정규화 → 베드 게인
+  (global $fl1 (mut f32) (f32.const 0)) (global $fl2 (mut f32) (f32.const 0))
+  (global $flC (mut f32) (f32.const 0.0003)) (global $flN (mut f32) (f32.const 1))
+  (global $fn  (mut f32) (f32.const 0))   ;; 현재 일렁임 값(분산 1)
+  (global $fg  (mut f32) (f32.const 1))   ;; 베드 게인
 
   (func $p (param $id i32) (result f32)
-    (f32.load (i32.add (i32.const 3200) (i32.shl (local.get $id) (i32.const 2)))))
+    (f32.load (i32.add (i32.const 3328) (i32.shl (local.get $id) (i32.const 2)))))
 
   ;; xorshift32 → [-1, 1)
   (func $rand (param $a i32) (result f32) (local $x i32)
@@ -157,7 +178,7 @@
       (br $l)))
     (local.set $i (i32.const 4096))
     (block $d (loop $l
-      (br_if $d (i32.ge_u (local.get $i) (i32.const 6656)))
+      (br_if $d (i32.ge_u (local.get $i) (i32.const 8704)))
       (i32.store (local.get $i) (i32.const 0))
       (local.set $i (i32.add (local.get $i) (i32.const 4)))
       (br $l)))
@@ -167,10 +188,19 @@
     (i32.store (i32.const 1232) (i32.const 0x1B873593))
     (i32.store (i32.const 1344) (i32.const 0x68E31DA4))
     (i32.store (i32.const 1348) (i32.const 0x3C6EF372))
+    (i32.store (i32.const 1352) (i32.const 0x510E527F))
     (f32.store (i32.const 1100) (f32.const 1000))   ;; 잔빗소리 첫 트리거 L/R 엇갈리게
     (f32.store (i32.const 1228) (f32.const 1700))
     (global.set $dropT (f32.const 2000)) (global.set $vi (i32.const 0))
     (global.set $limPk (f32.const 0)) (global.set $limG (f32.const 1)) (global.set $li (i32.const 0))
+    (global.set $ckT (f32.const 4000)) (global.set $ckI (i32.const 0)) (global.set $ckD (f32.const 0))
+    (global.set $crT (f32.const 3000)) (global.set $crN (i32.const 0)) (global.set $crG (f32.const 0))
+    (global.set $fl1 (f32.const 0)) (global.set $fl2 (f32.const 0)) (global.set $fn (f32.const 0)) (global.set $fg (f32.const 1))
+    ;; 일렁임 평활 계수(2.5 Hz)와 정규화: 같은 1차 LP 두 단의 임펄스 응답 제곱합
+    ;; Σh² = c⁴(1+a²)/(1−a²)³ (a = 1−c), 균등 노이즈 분산 1/3
+    (global.set $flC (f32.sub (f32.const 1) (f32.demote_f64 (call $exp (f64.promote_f32
+      (f32.div (f32.const -15.70796) (local.get $sr)))))))
+    (call $flnorm)
     ;; 방울 어택 ≈ 0.25 ms: 네모난 시작이 만드는 광대역 '틱'을 둥글린다
     (global.set $dropA (f32.sub (f32.const 1) (f32.demote_f64 (call $exp (f64.promote_f32
       (f32.div (f32.const -4000) (local.get $sr)))))))
@@ -196,6 +226,16 @@
     (global.set $s2 (f32.const 0.6)) (global.set $c2 (f32.const 0.8))
     (global.set $envL (f32.const 0)))
 
+  (func $flnorm (local $c f64) (local $a f64) (local $b f64) (local $c4 f64) (local $v f64)
+    (local.set $c (f64.promote_f32 (global.get $flC)))
+    (local.set $a (f64.sub (f64.const 1) (local.get $c)))
+    (local.set $b (f64.sub (f64.const 1) (f64.mul (local.get $a) (local.get $a))))
+    (local.set $c4 (f64.mul (f64.mul (local.get $c) (local.get $c)) (f64.mul (local.get $c) (local.get $c))))
+    (local.set $v (f64.div (f64.mul (f64.mul (f64.const 0.333333) (local.get $c4))
+                                    (f64.add (f64.const 1) (f64.mul (local.get $a) (local.get $a))))
+                           (f64.mul (local.get $b) (f64.mul (local.get $b) (local.get $b)))))
+    (global.set $flN (f32.demote_f64 (f64.div (f64.const 1) (f64.sqrt (local.get $v))))))
+
   ;; 현재 엔벨로프 레벨 (0이면 완전 무음)
   (func (export "env") (result f32) (global.get $envL))
 
@@ -210,8 +250,8 @@
   (func (export "snap") (local $i i32)
     (local.set $i (i32.const 1))
     (block $d (loop $l
-      (br_if $d (i32.ge_u (local.get $i) (i32.const 32)))
-      (f32.store (i32.add (i32.const 3200) (i32.shl (local.get $i) (i32.const 2)))
+      (br_if $d (i32.ge_u (local.get $i) (i32.const 64)))
+      (f32.store (i32.add (i32.const 3328) (i32.shl (local.get $i) (i32.const 2)))
         (f32.load (i32.add (i32.const 3072) (i32.shl (local.get $i) (i32.const 2)))))
       (local.set $i (i32.add (local.get $i) (i32.const 1)))
       (br $l))))
@@ -233,12 +273,42 @@
   (func $pow2 (param $x f32) (result f32)
     (f32.demote_f64 (call $exp (f64.promote_f32 (f32.mul (local.get $x) (f32.const 0.6931472))))))
 
-  ;; 방울 하나를 가장 오래된 보이스에 할당
-  (func $trigger
-    (local $v i32) (local $sz f32) (local $fc f32) (local $q f32) (local $tau f32) (local $pan f32) (local $g f32)
-    (local $late i32)
+  ;; 이벤트 하나를 가장 오래된 보이스에 할당: 노이즈 임펄스(지수 감쇠 τ ms) → 공진 BP(fc, Q)
+  ;; amp는 BP 정규화 전 진폭, pan은 −1..1
+  (func $voice (param $fc f32) (param $q f32) (param $tau f32) (param $amp f32) (param $pan f32)
+    (local $v i32) (local $late i32)
     (local.set $v (i32.add (i32.const 4096) (i32.shl (global.get $vi) (i32.const 7))))
-    (global.set $vi (i32.and (i32.add (global.get $vi) (i32.const 1)) (i32.const 15)))
+    (global.set $vi (i32.and (i32.add (global.get $vi) (i32.const 1)) (i32.const 31)))
+    (call $svfcoef (i32.add (local.get $v) (i32.const 16)) (local.get $fc) (local.get $q))
+    (local.set $tau (f32.min (f32.const 80) (f32.max (f32.const 0.3) (local.get $tau))))
+    (f32.store offset=52 (local.get $v) (f32.demote_f64 (call $exp (f64.promote_f32
+      (f32.div (f32.const -1000) (f32.mul (local.get $tau) (global.get $sr)))))))
+    ;; 게인: 진폭 × k(BP 피크를 1로) × √Q(좁은 대역의 에너지 손실 보상)
+    (f32.store offset=32 (local.get $v)
+      (f32.mul (local.get $amp) (f32.mul (f32.load offset=28 (local.get $v)) (f32.sqrt (local.get $q)))))
+    ;; 등전력 팬
+    (local.set $pan (f32.min (f32.const 0.95) (f32.max (f32.const -0.95) (local.get $pan))))
+    (f32.store offset=36 (local.get $v) (f32.sqrt (f32.mul (f32.const 0.5) (f32.sub (f32.const 1) (local.get $pan)))))
+    (f32.store offset=40 (local.get $v) (f32.sqrt (f32.mul (f32.const 0.5) (f32.add (f32.const 1) (local.get $pan)))))
+    ;; 스테레오 디코릴레이션: L/R이 각자 독립된 노이즈로 울려 공진 위상이 서로 무작위이고,
+    ;; 작게 들리는 쪽은 2–10 ms 늦게 시작한다(먼저 도착한 쪽으로 정위되는 선행음 효과와 같은 방향)
+    (f32.store offset=8   (local.get $v) (f32.const 1))
+    (f32.store offset=72  (local.get $v) (f32.const 1))
+    (f32.store offset=12  (local.get $v) (f32.const 0))
+    (f32.store offset=76  (local.get $v) (f32.const 0))
+    (f32.store offset=56  (local.get $v) (f32.const 0))
+    (f32.store offset=120 (local.get $v) (f32.const 0))
+    (local.set $late (select (i32.const 56) (i32.const 120) (f32.gt (local.get $pan) (f32.const 0))))
+    (f32.store (i32.add (local.get $v) (local.get $late))
+      (f32.mul (f32.add (f32.const 0.002) (f32.mul (f32.const 0.008) (call $u01 (i32.const 1348)))) (global.get $sr)))
+    (i32.store offset=48  (local.get $v) (i32.or (i32.load (i32.const 1348)) (i32.const 1)))
+    (drop (call $rand (i32.const 1348)))
+    (i32.store offset=112 (local.get $v) (i32.or (i32.load (i32.const 1348)) (i32.const 1)))
+    (i32.store offset=44 (local.get $v) (i32.const 1)))
+
+  ;; 빗방울 하나
+  (func $trigger
+    (local $sz f32) (local $fc f32) (local $q f32) (local $tau f32) (local $g f32)
     ;; 크기: U² 분포 — 작은 방울이 많고 큰 방울은 드물다
     (local.set $sz (call $u01 (i32.const 1348)))
     (local.set $sz (f32.mul (local.get $sz) (local.get $sz)))
@@ -262,34 +332,103 @@
       (then (local.set $fc (f32.mul
         (f32.min (f32.const 4547) (f32.max (f32.const 2640) (local.get $fc)))
         (call $pow2 (f32.mul (f32.const 0.4) (call $rand (i32.const 1348))))))))
-    (call $svfcoef (i32.add (local.get $v) (i32.const 16)) (local.get $fc) (local.get $q))
     ;; 지수 감쇠 2–15 ms: 타격 직후 급격히 줄고 꼬리는 부드럽게 사라진다
-    (local.set $tau (f32.min (f32.const 15) (f32.max (f32.const 2) (local.get $tau))))
-    (f32.store offset=52 (local.get $v) (f32.demote_f64 (call $exp (f64.promote_f32
-      (f32.div (f32.const -1000) (f32.mul (local.get $tau) (global.get $sr)))))))
-    ;; 게인: 진폭 × k(BP 피크를 1로) × √Q(좁은 대역의 에너지 손실 보상)
-    (f32.store offset=32 (local.get $v)
+    (call $voice (local.get $fc) (local.get $q)
+      (f32.min (f32.const 15) (f32.max (f32.const 2) (local.get $tau)))
       (f32.mul (f32.mul (local.get $g) (f32.add (f32.const 0.25) (f32.mul (f32.const 0.75) (local.get $sz))))
-               (f32.mul (f32.load offset=28 (local.get $v)) (f32.sqrt (local.get $q)))))
-    ;; 등전력 팬
-    (local.set $pan (f32.mul (f32.const 0.85) (call $rand (i32.const 1348))))
-    (f32.store offset=36 (local.get $v) (f32.sqrt (f32.mul (f32.const 0.5) (f32.sub (f32.const 1) (local.get $pan)))))
-    (f32.store offset=40 (local.get $v) (f32.sqrt (f32.mul (f32.const 0.5) (f32.add (f32.const 1) (local.get $pan)))))
-    ;; 스테레오 디코릴레이션: L/R이 각자 독립된 노이즈로 울려 공진 위상이 서로 무작위이고,
-    ;; 작게 들리는 쪽은 2–10 ms 늦게 시작한다(먼저 도착한 쪽으로 정위되는 선행음 효과와 같은 방향)
-    (f32.store offset=8   (local.get $v) (f32.const 1))
-    (f32.store offset=72  (local.get $v) (f32.const 1))
-    (f32.store offset=12  (local.get $v) (f32.const 0))
-    (f32.store offset=76  (local.get $v) (f32.const 0))
-    (f32.store offset=56  (local.get $v) (f32.const 0))
-    (f32.store offset=120 (local.get $v) (f32.const 0))
-    (local.set $late (select (i32.const 56) (i32.const 120) (f32.gt (local.get $pan) (f32.const 0))))
-    (f32.store (i32.add (local.get $v) (local.get $late))
-      (f32.mul (f32.add (f32.const 0.002) (f32.mul (f32.const 0.008) (call $u01 (i32.const 1348)))) (global.get $sr)))
-    (i32.store offset=48  (local.get $v) (i32.or (i32.load (i32.const 1348)) (i32.const 1)))
-    (drop (call $rand (i32.const 1348)))
-    (i32.store offset=112 (local.get $v) (i32.or (i32.load (i32.const 1348)) (i32.const 1)))
-    (i32.store offset=44 (local.get $v) (i32.const 1)))
+               (f32.mul (call $p (i32.const 12)) (global.get $GR)))
+      (f32.mul (f32.const 0.85) (call $rand (i32.const 1348)))))
+
+  ;; 기차: 객차 한 량의 대차 2개 × 차축 2개가 레일 이음매(주기 T)를 차례로 지난다.
+  ;; 25 m 레일, 차축 간격 2.5 m, 대차 간격 17.5 m → 타격 위치 0, 0.1T, 0.7T, 0.8T ('덜컹 … 덜컹')
+  ;; 타격마다 저역 '쿵'(차체로 전해지는 충격)과 짧은 금속성 '칵'(바퀴–레일)을 함께 울린다.
+  (func $clack
+    (local $a f32) (local $lv f32) (local $pm f32) (local $pan f32) (local $gap f32)
+    (local.set $lv (f32.mul (call $p (i32.const 29)) (global.get $GC)))
+    (local.set $pm (call $p (i32.const 33)))
+    ;; 앞 차축(0, 2)이 조금 세고, 대차마다 위치가 조금 다르다
+    (local.set $a (f32.mul (select (f32.const 1) (f32.const 0.8) (i32.eqz (i32.and (global.get $ckI) (i32.const 1))))
+                           (f32.add (f32.const 0.8) (f32.mul (f32.const 0.4) (call $u01 (i32.const 1348))))))
+    (local.set $pan (f32.mul (f32.const 0.3) (call $rand (i32.const 1348))))
+    (if (f32.gt (local.get $lv) (f32.const 1e-4))
+      (then
+        (call $voice (f32.mul (f32.mul (call $p (i32.const 31)) (local.get $pm)) (call $pow2 (f32.mul (f32.const 0.15) (call $rand (i32.const 1348)))))
+          (f32.add (f32.const 1.5) (call $u01 (i32.const 1348))) (f32.const 30)
+          (f32.mul (local.get $lv) (local.get $a)) (local.get $pan))
+        (call $voice (f32.mul (f32.mul (call $p (i32.const 32)) (local.get $pm)) (call $pow2 (f32.mul (f32.const 0.3) (call $rand (i32.const 1348)))))
+          (f32.add (f32.const 3) (f32.mul (f32.const 3) (call $u01 (i32.const 1348)))) (f32.const 3)
+          (f32.mul (f32.mul (local.get $lv) (local.get $a)) (f32.const 0.6)) (local.get $pan))))
+    ;; 다음 타격까지: 0.1T, 0.6T, 0.1T, 0.2T. 주기마다 속도가 ±4% 안에서 천천히 흔들린다.
+    (if (i32.eqz (global.get $ckI))
+      (then (global.set $ckD (f32.add (f32.mul (global.get $ckD) (f32.const 0.95))
+                                      (f32.mul (f32.const 0.3) (call $rand (i32.const 1348)))))))
+    (local.set $gap (select (f32.const 0.1)
+      (select (f32.const 0.6) (f32.const 0.2) (i32.eq (global.get $ckI) (i32.const 1)))
+      (i32.eqz (i32.and (global.get $ckI) (i32.const 1)))))
+    (global.set $ckT (f32.add (global.get $ckT)
+      (f32.mul (f32.mul (local.get $gap) (f32.max (f32.const 0.1) (call $p (i32.const 30))))
+               (f32.mul (global.get $sr) (f32.add (f32.const 1) (f32.mul (f32.const 0.04) (global.get $ckD)))))))
+    (global.set $ckI (i32.and (i32.add (global.get $ckI) (i32.const 1)) (i32.const 3))))
+
+  ;; 벽난로 타닥 하나: 대부분 아주 짧고 밝은 '타닥', 가끔 낮고 굵은 '펑'(장작 속 수분·가스가 터짐)
+  (func $crackle
+    (local $lv f32) (local $u f32)
+    (local.set $lv (f32.mul (call $p (i32.const 34)) (global.get $GK)))
+    (if (f32.le (local.get $lv) (f32.const 1e-4)) (then (return)))
+    (if (f32.lt (call $u01 (i32.const 1348)) (call $p (i32.const 38)))
+      (then
+        (call $voice (f32.mul (call $p (i32.const 40)) (call $pow2 (f32.mul (f32.const 0.5) (call $rand (i32.const 1348)))))
+          (f32.add (f32.const 1) (call $u01 (i32.const 1348))) (f32.const 6)
+          (f32.mul (local.get $lv) (f32.add (f32.const 0.6) (f32.mul (f32.const 0.4) (call $u01 (i32.const 1348)))))
+          (global.get $crP)))
+      (else
+        ;; 세기는 U³ 분포(작은 타닥이 대부분, 큰 타닥은 드묾), 감쇠 0.6–2 ms
+        (local.set $u (call $u01 (i32.const 1348)))
+        (call $voice (f32.mul (call $p (i32.const 37)) (call $pow2 (f32.mul (f32.const 0.9) (call $rand (i32.const 1348)))))
+          (f32.add (f32.const 0.8) (f32.mul (f32.const 1.5) (call $u01 (i32.const 1348))))
+          (f32.add (f32.const 0.6) (f32.mul (f32.const 1.4) (call $u01 (i32.const 1348))))
+          (f32.mul (local.get $lv) (f32.add (f32.const 0.1)
+            (f32.mul (f32.const 0.9) (f32.mul (local.get $u) (f32.mul (local.get $u) (local.get $u))))))
+          (f32.add (global.get $crP) (f32.mul (f32.const 0.1) (call $rand (i32.const 1348))))))))
+
+  ;; 스케줄러 1샘플: 빗방울·기차·벽난로
+  (func $schedule
+    (local $k f32)
+    ;; 빗방울
+    (global.set $dropT (f32.sub (global.get $dropT) (f32.const 1)))
+    (block $d (loop $l
+      (br_if $d (f32.gt (global.get $dropT) (f32.const 0)))
+      (if (f32.gt (call $p (i32.const 12)) (f32.const 1e-4)) (then (call $trigger)))
+      (global.set $dropT (f32.add (global.get $dropT) (call $interval (i32.const 1348) (call $p (i32.const 13)))))
+      (br $l)))
+    ;; 기차
+    (global.set $ckT (f32.sub (global.get $ckT) (f32.const 1)))
+    (block $d (loop $l
+      (br_if $d (f32.gt (global.get $ckT) (f32.const 0)))
+      (call $clack)
+      (br $l)))
+    ;; 벽난로: 군집 도착(불꽃이 일렁여 커질 때 더 잦다) → 군집 안 타닥들
+    (global.set $crT (f32.sub (global.get $crT) (f32.const 1)))
+    (if (i32.and (f32.le (global.get $crT) (f32.const 0)) (i32.eqz (global.get $crN)))
+      (then
+        (local.set $k (f32.mul (f32.const -1) (f32.demote_f64 (call $log (f64.promote_f32
+          (f32.sub (f32.const 1) (call $u01 (i32.const 1348))))))))
+        (global.set $crN (i32.trunc_f32_u (f32.min (f32.const 12)
+          (f32.add (f32.const 1) (f32.mul (local.get $k) (f32.max (f32.const 0) (f32.sub (call $p (i32.const 36)) (f32.const 1))))))))
+        (global.set $crP (f32.mul (f32.const 0.7) (call $rand (i32.const 1348))))
+        (global.set $crG (f32.const 0))
+        (global.set $crT (f32.add (global.get $crT) (call $interval (i32.const 1348)
+          (f32.mul (call $p (i32.const 35))
+            (f32.max (f32.const 0) (f32.add (f32.const 1) (f32.mul (f32.mul (f32.const 0.6) (call $p (i32.const 39))) (global.get $fn))))))))))
+    (if (global.get $crN)
+      (then
+        (global.set $crG (f32.sub (global.get $crG) (f32.const 1)))
+        (if (f32.le (global.get $crG) (f32.const 0))
+          (then
+            (call $crackle)
+            (global.set $crN (i32.sub (global.get $crN) (i32.const 1)))
+            ;; 군집 안 간격: 평균 12 ms 지수분포
+            (global.set $crG (call $interval (i32.const 1348) (f32.const 83))))))))
 
   ;; 보이스의 한 채널 1샘플: 시작 지연 → 지수 감쇠 엔벨로프(어택 스무딩) × 노이즈 → 공진 BP → $bp
   (func $side (param $s i32) (param $c i32) (param $dec f32)
@@ -307,18 +446,13 @@
         (call $svf (local.get $s) (local.get $c)
           (f32.mul (local.get $e) (call $rand (i32.add (local.get $s) (i32.const 48))))))))
 
-  ;; 1샘플: 스케줄러 진행 + 활성 보이스 합산 → $dL, $dR
+  ;; 1샘플: 스케줄러 진행 + 활성 보이스 합산 → $dL, $dR (레이어 레벨은 보이스 게인에 들어 있다)
   (func $drops
     (local $v i32) (local $q f32) (local $l f32) (local $r f32) (local $gn f32)
-    (global.set $dropT (f32.sub (global.get $dropT) (f32.const 1)))
-    (block $d (loop $l
-      (br_if $d (f32.gt (global.get $dropT) (f32.const 0)))
-      (call $trigger)
-      (global.set $dropT (f32.add (global.get $dropT) (call $interval (i32.const 1348) (call $p (i32.const 13)))))
-      (br $l)))
+    (call $schedule)
     (local.set $v (i32.const 4096))
     (block $d (loop $l
-      (br_if $d (i32.ge_u (local.get $v) (i32.const 6144)))
+      (br_if $d (i32.ge_u (local.get $v) (i32.const 8192)))
       (if (i32.load offset=44 (local.get $v))
         (then
           (local.set $gn (f32.load offset=32 (local.get $v)))
@@ -393,16 +527,16 @@
     (local.set $pit (f32.mul (f32.mul (call $p (i32.const 25)) (global.get $GT)) (global.get $bp)))
     ;; 타격음 버스 LP(Q 0.707, 컷오프 = 베드 LP): 메인 LP와 겹쳐 타격음은 베드보다 12 dB/oct 더
     ;; 가파르게 떨어진다 → 컷오프 위에서 BP 스커트의 날카로운 고역이 베드 위로 튀지 않고 그 아래로 스며든다
-    (call $svf (i32.add (local.get $b) (i32.const 108)) (i32.const 2160)
-      (f32.add (local.get $pit) (f32.mul (f32.mul (call $p (i32.const 12)) (global.get $GR)) (local.get $drop))))
+    (call $svf (i32.add (local.get $b) (i32.const 108)) (i32.const 2160) (f32.add (local.get $pit) (local.get $drop)))
     (local.set $pit (global.get $lo))
 
     ;; 믹스
-    (local.set $x (f32.add
-      (f32.add (f32.mul (f32.mul (call $p (i32.const 1)) (global.get $GW)) (local.get $w))
-               (f32.mul (f32.mul (call $p (i32.const 2)) (global.get $GP)) (local.get $pink)))
-      (f32.add (f32.mul (f32.mul (call $p (i32.const 3)) (global.get $GB)) (local.get $br))
-               (f32.add (local.get $deep) (local.get $pit)))))
+    ;; 베드(노이즈 + 딥)는 불꽃 일렁임 게인을 받는다
+    (local.set $x (f32.add (local.get $pit) (f32.mul (global.get $fg)
+      (f32.add (f32.add (f32.mul (f32.mul (call $p (i32.const 1)) (global.get $GW)) (local.get $w))
+                        (f32.mul (f32.mul (call $p (i32.const 2)) (global.get $GP)) (local.get $pink)))
+               (f32.add (f32.mul (f32.mul (call $p (i32.const 3)) (global.get $GB)) (local.get $br))
+                        (local.get $deep))))))
 
     ;; 베이스 셸프: x + g·LP(x)
     (call $svf (i32.add (local.get $b) (i32.const 36)) (i32.const 2080) (local.get $x))
@@ -460,11 +594,11 @@
     (local.set $m (call $p (i32.const 0)))
     (local.set $id (i32.const 0))
     (block $d (loop $l
-      (br_if $d (i32.ge_u (local.get $id) (i32.const 32)))
+      (br_if $d (i32.ge_u (local.get $id) (i32.const 64)))
       (local.set $addr (i32.shl (local.get $id) (i32.const 2)))
-      (local.set $cur (f32.load offset=3200 (local.get $addr)))
+      (local.set $cur (f32.load offset=3328 (local.get $addr)))
       (local.set $tgt (f32.load offset=3072 (local.get $addr)))
-      (f32.store offset=3200 (local.get $addr)
+      (f32.store offset=3328 (local.get $addr)
         (f32.add (local.get $cur) (f32.mul (f32.sub (local.get $tgt) (local.get $cur)) (f32.const 0.04))))
       (local.set $id (i32.add (local.get $id) (i32.const 1)))
       (br $l)))
@@ -566,6 +700,12 @@
         (f32.mul (f32.mul (local.get $e) (local.get $e))
                  (f32.sub (f32.const 3) (f32.mul (f32.const 2) (local.get $e))))))
 
+      ;; 불꽃 일렁임
+      (global.set $fl1 (f32.add (global.get $fl1) (f32.mul (global.get $flC) (f32.sub (call $rand (i32.const 1352)) (global.get $fl1)))))
+      (global.set $fl2 (f32.add (global.get $fl2) (f32.mul (global.get $flC) (f32.sub (global.get $fl1) (global.get $fl2)))))
+      (global.set $fn (f32.mul (global.get $fl2) (global.get $flN)))
+      (global.set $fg (f32.max (f32.const 0) (f32.add (f32.const 1) (f32.mul (f32.mul (f32.const 0.35) (call $p (i32.const 39))) (global.get $fn)))))
+
       (call $drops)
       (local.set $addr (i32.shl (local.get $i) (i32.const 2)))
       (call $chan (i32.const 1024) (local.get $wC) (local.get $deep) (global.get $dL) (local.get $amp) (local.get $g) (local.get $addr))
@@ -584,11 +724,11 @@
         (then (f32.add (global.get $limG) (f32.mul (global.get $limAt) (f32.sub (local.get $lg) (global.get $limG)))))
         (else (local.get $lg))))
       (f32.store (local.get $addr)
-        (call $clip (f32.mul (f32.load offset=6144 (global.get $li)) (global.get $limG))))
+        (call $clip (f32.mul (f32.load offset=8192 (global.get $li)) (global.get $limG))))
       (f32.store offset=512 (local.get $addr)
-        (call $clip (f32.mul (f32.load offset=6400 (global.get $li)) (global.get $limG))))
-      (f32.store offset=6144 (global.get $li) (local.get $xl))
-      (f32.store offset=6400 (global.get $li) (local.get $xr))
+        (call $clip (f32.mul (f32.load offset=8448 (global.get $li)) (global.get $limG))))
+      (f32.store offset=8192 (global.get $li) (local.get $xl))
+      (f32.store offset=8448 (global.get $li) (local.get $xr))
       (global.set $li (i32.and (i32.add (global.get $li) (i32.const 4)) (i32.const 255)))
 
       (local.set $i (i32.add (local.get $i) (i32.const 1)))

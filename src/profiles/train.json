@@ -1,0 +1,117 @@
+{
+  "source": {
+    "url": "https://www.youtube.com/watch?v=pyyJQD91qMU",
+    "id": "pyyJQD91qMU",
+    "title": "Train Sounds for Sleep & Relaxation | 10 Hour Luxury Train Ride",
+    "channel": "Relaxing White Noise",
+    "start_s": 300,
+    "duration_s": 180,
+    "selection": {
+      "rank": 1,
+      "score": 0.882,
+      "views": 2050323,
+      "likes": 18716,
+      "comment_count": 402,
+      "followers": 4530000,
+      "comments": {
+        "signal": 0.45,
+        "positive": 27,
+        "negative": 0
+      }
+    }
+  },
+  "analysis": {
+    "file": "train_ref.wav",
+    "sample_rate": 48000,
+    "duration_s": 180.0,
+    "spectral": {
+      "centroid_hz": {
+        "mean": 81.6,
+        "median": 75.1,
+        "p10": 36.2,
+        "p90": 135.0
+      },
+      "rolloff85_hz_median": 117.2,
+      "slope_db_per_oct": -13.31,
+      "cumulative_1pct_hz": 23.4,
+      "band_energy": {
+        "20-60": 0.393,
+        "60-250": 0.2842,
+        "250-1000": 0.0456,
+        "1000-4000": 0.0023,
+        "4000-8000": 0.0,
+        "8000-16000": 0.0,
+        "16000-24000": 0.0
+      }
+    },
+    "bed": {
+      "slope_db_per_oct": -13.27,
+      "centroid_hz": 29.8,
+      "rolloff85_hz": 70.3,
+      "band_energy": {
+        "20-60": 0.4998,
+        "60-250": 0.1354,
+        "250-1000": 0.0035,
+        "1000-4000": 0.0003,
+        "4000-8000": 0.0,
+        "8000-16000": 0.0,
+        "16000-24000": 0.0
+      }
+    },
+    "rms": {
+      "mean": 13.6006,
+      "std": 10.54421,
+      "mean_db": 22.67,
+      "cv": 0.775,
+      "slow_cv": 0.191,
+      "fast_cv": 0.252
+    },
+    "periodicity": {
+      "period_s": 2.4,
+      "strength": 0.145
+    },
+    "stereo_corr": 0.575,
+    "transient": {
+      "percussive_ratio": 0.038,
+      "onset_count": 2629,
+      "onset_rate_hz": 14.61,
+      "detector_dead_time_ms": 32.0,
+      "rate_corrected_hz": 27.42,
+      "ioi_ms_mean": 68.5,
+      "ioi_cv": 0.508,
+      "poisson_ks": 0.373,
+      "poisson_ks_dead_time": 0.183,
+      "ioi_cv_dead_time": 0.955,
+      "centroid_hz": 226.8,
+      "low_peak_hz": 328.1,
+      "sub_peak_hz": 164.1,
+      "high_low_ratio": 0.002,
+      "band_energy": {
+        "20-60": 0.0214,
+        "60-250": 0.6437,
+        "250-1000": 0.3128,
+        "1000-4000": 0.0034,
+        "4000-8000": 0.0,
+        "8000-16000": 0.0,
+        "16000-24000": 0.0
+      },
+      "decay_ms_median": 74.7
+    }
+  },
+  "fit": {
+    "lpHz": 937.6,
+    "lpQ": 0.707,
+    "lpSlope": 0,
+    "air": 0.3,
+    "pitch": 1.0,
+    "subHz": 100,
+    "band_rms_error_db": 1.7,
+    "percussive_ratio": 0.075,
+    "render_rms": 0.1059,
+    "render_peak": 0.512,
+    "pink": 0.51,
+    "brown": 0.0,
+    "deep": 0.525,
+    "clackLevel": 1.0
+  }
+}
