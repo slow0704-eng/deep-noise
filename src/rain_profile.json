@@ -95,15 +95,15 @@
     "lpQ": 1.0,
     "lpSlope": 0,
     "air": 0.3,
-    "pitch": 0.63,
+    "pitch": 0.5,
     "band_rms_error_db": 1.9,
-    "percussive_ratio": 0.627,
-    "render_rms": 0.0665,
-    "render_peak": 0.641,
+    "percussive_ratio": 0.607,
+    "render_rms": 0.0594,
+    "render_peak": 0.525,
     "pink": 1.0,
     "brown": 0.0,
-    "deep": 0.242,
-    "dropLevel": 0.31,
-    "pitLevel": 0.181
+    "deep": 0.237,
+    "dropLevel": 0.454,
+    "pitLevel": 0.162
   }
 }
