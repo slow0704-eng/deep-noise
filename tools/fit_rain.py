@@ -48,15 +48,23 @@ def band_power(y, sr):
     return bands(*welch(y, fs=sr, nperseg=8192))
 
 
-def tone_gain(f, sr, lp, q, slope, air):
+MASTER = 1.5 * 0.6 ** 2   # tools/render_rain.cjs의 마스터(볼륨 60%)
+FIT_GAIN = 0.1
+HITS = (12, 25)          # 타격음 버스를 지나는 레이어: 방울, 잔빗소리
+
+
+def tone_gain(f, sr, lp, q, slope, air, hit=False):
     """엔진 톤 체인(LP → 2단 LP 크로스페이드 → Air 셸프)의 |H(f)|².
-    TPT SVF는 컷오프에서 사전 왜곡한 쌍선형 변환과 같아서 응답을 해석적으로 계산할 수 있다(engine.wat와 같은 식)."""
+    TPT SVF는 컷오프에서 사전 왜곡한 쌍선형 변환과 같아서 응답을 해석적으로 계산할 수 있다(engine.wat와 같은 식).
+    hit: 타격음 레이어(방울·잔빗소리)는 같은 컷오프의 버스 LP(Q 0.707)를 한 번 더 거친다."""
     def svf_lp(fc, qq):
         fc = min(fc, 0.45 * sr)
         x = np.tan(np.pi * f / sr) / np.tan(np.pi * fc / sr)
         return 1 / (1 - x ** 2 + 1j * x / qq)
     h = svf_lp(lp, q) / np.sqrt(max(1, q * np.sqrt(2)))           # $qcomp
     h = h * ((1 - slope) + slope * svf_lp(lp, 0.707))
+    if hit:
+        h = h * svf_lp(lp, 0.707)
     c = min(1, 2 * np.pi * 2500 / sr)
     a = c / (1 - (1 - c) * np.exp(-2j * np.pi * f / sr))           # Air의 1차 LP
     return np.abs(h * ((1 + air) - air * a)) ** 2
@@ -115,6 +123,9 @@ def fit(ref_wav, profile_path):
         # 저역이 비어 있는 레퍼런스에서 하이패스 없이 맞추면 그 대역 상대 오차 때문에 베드가 0으로 풀린다.
         c1 = prof["analysis"]["spectral"]["cumulative_1pct_hz"]
         off.update({"10": 0, "16": min(400, c1) if c1 >= 25 else 0})
+        # 피팅용 렌더는 마스터를 1/10로 낮춰 출력 리미터가 개입하지 않는 선형 구간에서 잰다
+        # (레이어를 레벨 1로 따로 렌더하면 피크가 커서 리미터가 레이어 파워를 깎는다).
+        off["0"] = MASTER * FIT_GAIN
 
         def params(lp, w, scale=1.0):
             return {**off, "7": lp[0], "15": lp[1], "28": lp[2], "8": lp[3], "27": lp[4], **{str(pid): float(np.sqrt(v) * scale) for (_, pid), v in zip(LAYERS, w)}}
@@ -127,23 +138,23 @@ def fit(ref_wav, profile_path):
         #   (타격 순간의 스펙트럼 중심은 넓은 대역 타격음의 공진 피크보다 높게 나오기 쉽다).
         flat = {"7": 20000, "15": 0.707, "28": 0, "8": 0}
 
-        def psd(over):
+        def psd(over, hit):
             yy, srr = render_y({**off, **flat, **over}, tmp)
             f, pxx = welch(yy, fs=srr, nperseg=8192)
-            return f, pxx / tone_gain(f, srr, 20000, 0.707, 0, 0), srr
+            return f, pxx / tone_gain(f, srr, 20000, 0.707, 0, 0, hit), srr
 
         PITCHES = (0.5, 0.63, 0.8, 1.0)
         layer_psd = {}
         for n, pid in LAYERS:
-            for pt in (PITCHES if pid in (12, 25) else (None,)):
-                layer_psd[(pid, pt)] = psd({str(pid): 1, "27": pt or 1})
+            for pt in (PITCHES if pid in HITS else (None,)):
+                layer_psd[(pid, pt)] = psd({str(pid): 1, "27": pt or 1}, pid in HITS)
         fr, _, srr = layer_psd[(LAYERS[0][1], None)]
         cutoffs = sorted({min(20000, roll * k) for k in (1.0, 1.3, 1.7, 2.2, 3.0, 4.0, 5.5, 8.0)} | {5000, 6000, 7000, 8500})
         bases = {}
         for lp in [(c, q, sl, air, pt) for c in cutoffs for q in (0.707, 1.0, 1.4) for sl in (0, 0.5, 1)
                    for air in (0.3, 0, -0.3, -0.5, -0.7) for pt in PITCHES]:
-            g = tone_gain(fr, srr, *lp[:4])
-            bases[lp] = np.array([bands(fr, layer_psd[(pid, lp[4] if pid in (12, 25) else None)][1] * g) / ref.sum()
+            g = {h: tone_gain(fr, srr, *lp[:4], h) for h in (False, True)}
+            bases[lp] = np.array([bands(fr, layer_psd[(pid, lp[4] if pid in HITS else None)][1] * g[pid in HITS]) / ref.sum()
                                   for _, pid in LAYERS]).T
         free = {k: err_db(A, nnls(A * W[:, None], ref_n * W)[0]) for k, A in bases.items()}
         for k in sorted(free, key=free.get)[:5]:
@@ -169,8 +180,10 @@ def fit(ref_wav, profile_path):
         band_err = err_db(bases[lp], w)
 
         # 3단계: 출력 레벨 정규화(슬라이더 범위 0–1을 넘지 않게)
-        y, _ = render_y(params(lp, w), tmp)
-        scale = TARGET_RMS / float(np.sqrt(np.mean(y ** 2)))
+        #   여기서부터는 실제 마스터(렌더러 기본값)로 렌더한다. 피팅 렌더와 같은 출력이 되는 레벨은 √w × FIT_GAIN.
+        del off["0"]
+        y, _ = render_y(params(lp, w, FIT_GAIN), tmp)
+        scale = FIT_GAIN * TARGET_RMS / float(np.sqrt(np.mean(y ** 2)))
         scale = min(scale, 1 / float(np.sqrt(w).max()))
         lv = np.sqrt(w) * scale
         y, _ = render_y(params(lp, w, scale), tmp)
