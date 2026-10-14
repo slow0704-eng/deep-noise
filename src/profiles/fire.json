@@ -105,14 +105,14 @@
     "air": 0,
     "pitch": 1.0,
     "subHz": 100,
-    "band_rms_error_db": 1.61,
-    "percussive_ratio": 0.013,
-    "render_rms": 0.12,
-    "render_peak": 0.577,
-    "white": 0.362,
+    "band_rms_error_db": 1.54,
+    "percussive_ratio": 0.012,
+    "render_rms": 0.1199,
+    "render_peak": 0.581,
+    "white": 0.124,
     "pink": 0.0,
-    "brown": 0.215,
-    "deep": 0.956,
-    "crackleLevel": 0.353
+    "brown": 0.223,
+    "deep": 0.955,
+    "crackleLevel": 0.317
   }
 }

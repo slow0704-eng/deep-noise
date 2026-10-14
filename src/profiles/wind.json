@@ -1,0 +1,130 @@
+{
+  "source": {
+    "url": "https://www.youtube.com/watch?v=sGkh1W5cbH4",
+    "id": "sGkh1W5cbH4",
+    "title": "💨 Winter Storm Ambience with Icy Howling Wind Sounds for Sleeping, Relaxing and Studying Background.",
+    "channel": "Relaxing Soundzzz",
+    "start_s": 300,
+    "duration_s": 180,
+    "selection": {
+      "rank": 2,
+      "score": 0.764,
+      "views": 30346879,
+      "likes": 234539,
+      "comment_count": 11000,
+      "followers": 404000,
+      "comments": {
+        "signal": 0.25,
+        "positive": 17,
+        "negative": 1
+      }
+    }
+  },
+  "analysis": {
+    "file": "wind_ref.wav",
+    "sample_rate": 48000,
+    "duration_s": 180.0,
+    "spectral": {
+      "centroid_hz": {
+        "mean": 206.5,
+        "median": 206.4,
+        "p10": 143.0,
+        "p90": 269.8
+      },
+      "rolloff85_hz_median": 328.1,
+      "slope_db_per_oct": -13.29,
+      "cumulative_1pct_hz": 23.4,
+      "band_energy": {
+        "20-60": 0.0959,
+        "60-250": 0.5942,
+        "250-1000": 0.3071,
+        "1000-4000": 0.0025,
+        "4000-8000": 0.0,
+        "8000-16000": 0.0,
+        "16000-24000": 0.0
+      }
+    },
+    "bed": {
+      "slope_db_per_oct": -13.87,
+      "centroid_hz": 185.4,
+      "rolloff85_hz": 304.7,
+      "band_energy": {
+        "20-60": 0.0781,
+        "60-250": 0.6486,
+        "250-1000": 0.2726,
+        "1000-4000": 0.0007,
+        "4000-8000": 0.0,
+        "8000-16000": 0.0,
+        "16000-24000": 0.0
+      }
+    },
+    "rms": {
+      "mean": 1.33966,
+      "std": 1.01428,
+      "mean_db": 2.54,
+      "cv": 0.757,
+      "slow_cv": 0.462,
+      "fast_cv": 0.164,
+      "gust_hz": 0.046
+    },
+    "tonal": {
+      "peak_hz": 2015.6,
+      "prominence_db": 25.9,
+      "period_s": 0.299,
+      "period_strength": 0.78,
+      "duty": 0.382,
+      "pulse_hz": 35.7,
+      "pulse_strength": 0.796
+    },
+    "periodicity": {
+      "period_s": 0.309,
+      "strength": 0.694
+    },
+    "stereo_corr": 0.528,
+    "transient": {
+      "percussive_ratio": 0.098,
+      "onset_count": 2238,
+      "onset_rate_hz": 12.43,
+      "detector_dead_time_ms": 32.0,
+      "rate_corrected_hz": 20.65,
+      "ioi_ms_mean": 80.4,
+      "ioi_cv": 0.56,
+      "poisson_ks": 0.328,
+      "poisson_ks_dead_time": 0.149,
+      "ioi_cv_dead_time": 0.931,
+      "centroid_hz": 210.8,
+      "low_peak_hz": 351.6,
+      "sub_peak_hz": 46.9,
+      "high_low_ratio": 0.003,
+      "band_energy": {
+        "20-60": 0.2092,
+        "60-250": 0.463,
+        "250-1000": 0.3071,
+        "1000-4000": 0.0068,
+        "4000-8000": 0.0001,
+        "8000-16000": 0.0,
+        "16000-24000": 0.0
+      },
+      "decay_ms_median": 42.7
+    }
+  },
+  "fit": {
+    "lpHz": 300,
+    "lpQ": 0.707,
+    "lpSlope": 0.5,
+    "air": -0.5,
+    "pitch": 400,
+    "subHz": 35,
+    "hpHz": 80,
+    "band_rms_error_db": 3.03,
+    "percussive_ratio": 0.108,
+    "render_rms": 0.0897,
+    "render_peak": 0.417,
+    "makeup": 4.0,
+    "white": 1.0,
+    "pink": 0.0,
+    "brown": 0.0,
+    "deep": 0.0,
+    "howlLevel": 0.263
+  }
+}

@@ -1,5 +1,5 @@
 // 빌드: src/engine.wat → WebAssembly 바이너리 → index.html에 base64로 인라인
-//       src/profiles/*.json + src/scene_model.js → 장면(빗소리·기차·벽난로) 엔진 초기 파라미터로 인라인
+//       src/profiles/*.json + src/scene_model.js → 장면 엔진 초기 파라미터로 인라인
 // 사용법: npm install && npm run build
 const fs = require('fs'), path = require('path');
 (async () => {
@@ -12,7 +12,7 @@ const fs = require('fs'), path = require('path');
   fs.writeFileSync(path.join(__dirname, 'dist/engine.wasm'), buffer);
   // 장면 레퍼런스: tools/analyze_reference.py(+fit_reference.py)가 만든 프로파일을 엔진 초기 파라미터로 바인딩
   const profiles = {};
-  for (const scene of ['rain', 'train', 'fire']) {
+  for (const scene of Object.keys(require('./src/scene_model.js').SCENE_MODELS)) {
     const f = path.join(__dirname, `src/profiles/${scene}.json`);
     profiles[scene] = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
   }

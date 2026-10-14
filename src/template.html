@@ -85,8 +85,9 @@ canvas#viz{display:block;width:100%;height:clamp(180px,26vw,280px);margin-top:cl
 .chip:hover{background:var(--panel2);transform:translateY(-2px)}
 .chip:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .chip.on{background:var(--panel2);border-color:rgba(255,255,255,.6)}
+.chip small{display:block;margin-top:4px;font-size:13px;font-weight:500;color:var(--muted);letter-spacing:0}
 
-/* ── 장면 패널(빗소리·기차·벽난로를 고르면 열림) ─────── */
+/* ── 장면 패널(장면 프리셋을 고르면 열림) ─────── */
 .scene{margin-top:14px;background:var(--panel);border-radius:28px;padding:30px 30px 18px;animation:rise .5s var(--ease)}
 .scene[hidden]{display:none}
 @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
@@ -207,8 +208,8 @@ kbd{font-family:inherit;border:1px solid rgba(255,255,255,.18);border-radius:5px
   <section class="section" id="sound">
     <div class="reveal">
       <p class="eyebrow">프리셋</p>
-      <h2 class="headline">열 가지 분위기.<br>하나의 엔진.</h2>
-      <p class="lede">깊은 저음과 부드러운 노이즈부터 빗소리, 기차, 벽난로까지. <strong>탭 한 번으로</strong> 지금 필요한 고요를 고르세요.</p>
+      <h2 class="headline">열세 가지 풍경.<br>하나의 엔진.</h2>
+      <p class="lede">샤워 물줄기와 폭포, 빗소리와 시냇물, 여름밤 풀벌레와 벽난로까지. <strong>탭 한 번으로</strong> 지금 필요한 고요를 고르세요.</p>
     </div>
     <div class="presets reveal" id="presets"></div>
     <div class="scene" id="scene" hidden aria-live="polite">
@@ -216,6 +217,9 @@ kbd{font-family:inherit;border:1px solid rgba(255,255,255,.18);border-radius:5px
       <div id="g-rain" class="cols2 sg" hidden></div>
       <div id="g-train" class="cols2 sg" hidden></div>
       <div id="g-fire" class="cols2 sg" hidden></div>
+      <div id="g-stream" class="cols2 sg" hidden></div>
+      <div id="g-wind" class="cols2 sg" hidden></div>
+      <div id="g-night" class="cols2 sg" hidden></div>
       <details class="more" id="scene-more">
         <summary>어떻게 만들었나요</summary>
         <p class="how" id="scene-how"></p>
@@ -313,26 +317,30 @@ const WASM_B64 = "/*__WASM_BASE64__*/";
 // 빌드 시 src/profiles/*.json(파이썬 분석·피팅 결과)과 src/scene_model.js(매핑)가 들어온다.
 const SCENE_REFS = /*__SCENE_PROFILES__*/null || {};
 /*__SCENE_MODEL__*/
-const RAIN = rainFromProfile(SCENE_REFS.rain), TRAIN = trainFromProfile(SCENE_REFS.train), FIRE = fireFromProfile(SCENE_REFS.fire);
+const SM = Object.fromEntries(Object.entries(SCENE_MODELS).map(([k, f]) => [k, f(SCENE_REFS[k])]));
+const { rain:RAIN, train:TRAIN, fire:FIRE, stream:STREAM, wind:WIND, night:NIGHT } = SM;
 
 // ── 아이콘 (Lucide, ISC 라이선스 — https://lucide.dev) ─────────
 const ICONS = {
   orbit: '<path d="M20.341 6.484A10 10 0 0 1 10.266 21.85"/><path d="M3.659 17.516A10 10 0 0 1 13.74 2.152"/><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/>',
-  wave: '<path d="M2 13a2 2 0 0 0 2-2V7a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0V4a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0v-4a2 2 0 0 1 2-2"/>',
-  flower: '<path d="M12 5a3 3 0 1 1 3 3m-3-3a3 3 0 1 0-3 3m3-3v1M9 8a3 3 0 1 0 3 3M9 8h1m5 0a3 3 0 1 1-3 3m3-3h-1m-2 3v-1"/><circle cx="12" cy="8" r="2"/><path d="M12 10v12"/><path d="M12 22c4.2 0 7-1.667 7-5-4.2 0-7 1.667-7 5Z"/><path d="M12 22c-4.2 0-7-1.667-7-5 4.2 0 7 1.667 7 5Z"/>',
-  mountain: '<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>',
   waves: '<path d="M2 12q2.5 2 5 0t5 0 5 0 5 0"/><path d="M2 19q2.5 2 5 0t5 0 5 0 5 0"/><path d="M2 5q2.5 2 5 0t5 0 5 0 5 0"/>',
   rain: '<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6"/><path d="M8 14v6"/><path d="M12 16v6"/>',
   train: '<path d="M8 3.1V7a4 4 0 0 0 8 0V3.1"/><path d="m9 15-1-1"/><path d="m15 15 1-1"/><path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z"/><path d="m8 19-2 3"/><path d="m16 19 2 3"/>',
   flame: '<path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"/>',
   plane: '<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>',
+  shower: '<path d="m4 4 2.5 2.5"/><path d="M13.5 6.5a4.95 4.95 0 0 0-7 7"/><path d="M15 5 5 15"/><path d="M14 17v.01"/><path d="M10 16v.01"/><path d="M13 13v.01"/><path d="M16 10v.01"/><path d="M11 20v.01"/><path d="M17 14v.01"/><path d="M20 11v.01"/>',
+  droplets: '<path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/>',
+  fan: '<path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z"/><path d="M12 12v.01"/>',
+  droplet: '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>',
+  wind: '<path d="M12.8 19.6A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/><path d="M9.8 4.4A2 2 0 1 1 11 8H2"/>',
+  moonStar: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9"/><path d="M20 3v4"/><path d="M22 5h-4"/>',
   headphones: '<path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/>',
 };
 // 아이콘 타일: [아이콘, 그라데이션 시작, 끝]
 const tile = (icon, a, b) => `<span class="ic" style="--g:linear-gradient(145deg,${a},${b});--sh:${b}" aria-hidden="true"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg></span>`;
 
 // ── 파라미터 정의 ────────────────────────────────────────────
-// id: 엔진 파라미터 번호, map: UI값(0..1) → 엔진값, keep: 프리셋을 바꿔도 유지
+// id: 엔진 파라미터 번호, map: UI값(0..1) → 엔진값, keep: 프리셋을 바꿔도 유지, also: [[id, map]] 함께 보낼 파라미터
 const logMap = (lo, hi) => v => lo * Math.pow(hi / lo, v);
 const logInv = (lo, hi, x) => Math.log(x / lo) / Math.log(hi / lo);
 const hz = f => f >= 1000 ? (f / 1000).toFixed(1) + ' kHz' : Math.round(f) + ' Hz';
@@ -340,10 +348,12 @@ const sec = s => s < 1 ? Math.round(s * 100) * 10 + ' ms' : s.toFixed(1) + ' 초
 const Q = logMap(0.5, 10), FADE = logMap(0.05, 10);
 const P_MASTER = 0, P_GATE = 18;
 const CONTROLS = [
-  { key:'white', g:'mix', label:'White', id:1, color:'#e8ecff', fmt:pct },
-  { key:'pink',  g:'mix', label:'Pink',  id:2, color:'#ff9ccf', fmt:pct },
-  { key:'brown', g:'mix', label:'Brown', id:3, color:'#d39a6a', fmt:pct },
+  { key:'white', g:'mix', label:'밝은 쏴— (White)', id:1, color:'#e8ecff', fmt:pct },
+  { key:'pink',  g:'mix', label:'부드러운 물소리 (Pink)',  id:2, color:'#ff9ccf', fmt:pct },
+  { key:'brown', g:'mix', label:'묵직한 웅— (Brown)', id:3, color:'#d39a6a', fmt:pct },
   { key:'deep',  g:'mix', label:'Deep 서브베이스', id:4, color:'#4f6bff', fmt:pct },
+  // 전체 레벨: 가운데 = 0 dB. 장면 프리셋은 레퍼런스 피팅의 출력 보정 게인으로 맞춘다
+  { key:'level', g:'mix', label:'전체 레벨', id:57, color:'#e8ecff', map:v=>Math.pow(2,(v-.5)*4), fmt:v=>{ const d = 20*Math.log10(Math.pow(2,(v-.5)*4)); return (d>=0?'+':'')+d.toFixed(1)+' dB'; } },
 
   { key:'rain',  g:'rain', label:'빗방울 (톡·툭)', id:12, color:'#6fd3e8', fmt:pct },
   { key:'dens',  g:'rain', label:'빗방울 빈도 (푸아송 λ)', id:13, color:'#6fd3e8', map:v=>RAIN.rate*Math.pow(2,(v-.5)*4), fmt:v=>(RAIN.rate*Math.pow(2,(v-.5)*4)).toFixed(1)+' /초' },
@@ -362,6 +372,22 @@ const CONTROLS = [
     fmt:v=>(FIRE.clusterRate*FIRE.clusterSize*Math.pow(2,(v-.5)*3)).toFixed(1)+' /초' },
   { key:'pop', g:'fire', label:'‘펑’ 비율', id:38, color:'#ff9f7a', map:v=>v*.6, fmt:v=>Math.round(v*60)+'%' },
   { key:'flicker', g:'fire', label:'불꽃 일렁임', id:39, color:'#ffd27a', fmt:pct },
+
+  { key:'bubble', g:'stream', label:'물방울 소리', id:41, color:'#7fd8ff', fmt:pct },
+  { key:'bRate', g:'stream', label:'물방울 빈도', id:42, color:'#7fd8ff', map:v=>STREAM.rate*Math.pow(2,(v-.5)*4), fmt:v=>(STREAM.rate*Math.pow(2,(v-.5)*4)).toFixed(0)+' /초' },
+  { key:'bPitch', g:'stream', label:'물방울 음높이', id:45, color:'#c9b8ff', map:v=>STREAM.pitch*Math.pow(2,(v-.5)*2), fmt:semi },
+  { key:'glide', g:'stream', label:'‘또르륵’ 음높이 상승', id:44, color:'#c9b8ff', map:v=>v*1.5, fmt:v=>'×'+(1+v*1.5).toFixed(2) },
+
+  { key:'gust', g:'wind', label:'돌풍 세기', id:46, color:'#b9d4e8', fmt:pct },
+  { key:'gustSp', g:'wind', label:'돌풍 빠르기', id:47, color:'#b9d4e8', map:v=>WIND.gustHz*Math.pow(2,(v-.5)*3), fmt:v=>'약 '+(1/(WIND.gustHz*Math.pow(2,(v-.5)*3))).toFixed(0)+' 초 주기' },
+  { key:'howl', g:'wind', label:'바람 휘파람', id:48, color:'#9fc0dd', fmt:pct },
+  { key:'howlP', g:'wind', label:'휘파람 음높이', id:49, color:'#c9b8ff', map:v=>WIND.howlHz*Math.pow(2,(v-.5)*2), fmt:v=>hz(WIND.howlHz*Math.pow(2,(v-.5)*2)) },
+
+  { key:'cricket', g:'night', label:'풀벌레 울음', id:51, color:'#b8f0a0', fmt:pct },
+  { key:'chirp', g:'night', label:'울음 빠르기', id:52, color:'#b8f0a0', map:v=>NIGHT.period/Math.pow(2,(v-.5)*2), fmt:v=>(NIGHT.period/Math.pow(2,(v-.5)*2)).toFixed(2)+' 초마다' },
+  // also: 같은 슬라이더가 함께 움직이는 파라미터 — 두 번째 종의 울음 높이도 같은 비율로 따른다
+  { key:'cPitch', g:'night', label:'울음 높이', id:53, color:'#c9b8ff', map:v=>NIGHT.cricketHz*Math.pow(2,v-.5), fmt:v=>hz(NIGHT.cricketHz*Math.pow(2,v-.5)),
+    also:[[56, v=>NIGHT.cricket2Hz*Math.pow(2,v-.5)]] },
 
   { key:'tone',  g:'filter', label:'로우패스 컷오프', id:7, color:'#b48cff', map:logMap(120,20000), fmt:v=>hz(logMap(120,20000)(v)) },
   { key:'lpq',   g:'filter', label:'로우패스 Q (공진)', id:15, color:'#b48cff', map:Q, fmt:v=>Q(v).toFixed(2) },
@@ -383,27 +409,36 @@ const CONTROLS = [
 function pct(v){ return Math.round(v*100)+'%'; }
 function semi(v){ const st = Math.round((v-.5)*24); return (st>0?'+':'')+st+' 반음'; }
 const mapOf = c => c.map || (x => x);
+const sends = c => [[c.id, mapOf(c)], ...(c.also || [])];
 
-const BASE = { white:0, pink:0, brown:0, deep:0, rain:0, subf:.4, bass:0, tone:1, air:0, warm:0, width:.6, swell:0, rate:.4, dens:.5,
+const BASE = { level:.5, white:0, pink:0, brown:0, deep:0, rain:0, subf:.4, bass:0, tone:1, air:0, warm:0, width:.6, swell:0, rate:.4, dens:.5,
   pit:0, tok:RAIN.pTok, pitch:.5, lps:0,
   clack:0, speed:.5, clackPitch:.5, crackle:0, crRate:.5, pop:FIRE.popRatio/.6, flicker:0,
+  bubble:0, bRate:.5, bPitch:.5, glide:STREAM.glide/1.5, gust:0, gustSp:.5, howl:0, howlP:.5, cricket:0, chirp:.5, cPitch:.5,
   lpq:logInv(.5,10,.707), hpf:0, hpq:logInv(.5,10,.707), fin:logInv(.05,10,1.5), fout:logInv(.05,10,.8) };
 // 레퍼런스 분석 → 슬라이더 값 (장면 프리셋). 배경·톤은 세 장면 공통.
 function bedPreset(m) {
-  return { white:m.white || 0, pink:m.pink, brown:m.brown, deep:m.deep, subf:logInv(25,120,m.subHz),
+  return { level:.5 + Math.log2(m.makeup || 1) / 4, white:m.white || 0, pink:m.pink, brown:m.brown, deep:m.deep, subf:logInv(25,120,m.subHz),
     tone:logInv(120,20000,m.lpHz), lpq:logInv(.5,10,m.lpQ || .707), lps:m.lpSlope ?? 1, hpf:m.hpHz ? logInv(10,2000,m.hpHz) : 0,
     air:m.air > 0 ? m.air / 1.5 : (m.air || 0) / .95, swell:m.swell, rate:.4, width:m.width };
 }
 const rainPreset  = () => ({ ...bedPreset(RAIN), rain:RAIN.dropLevel, pit:RAIN.pitLevel, tok:RAIN.pTok, dens:.5, pitch:.5 });
 const trainPreset = () => ({ ...bedPreset(TRAIN), clack:TRAIN.clackLevel, speed:.5, clackPitch:.5 });
 const firePreset  = () => ({ ...bedPreset(FIRE), crackle:FIRE.crackleLevel, crRate:.5, pop:FIRE.popRatio / .6, flicker:FIRE.flicker });
+const streamPreset = () => ({ ...bedPreset(STREAM), bubble:STREAM.bubbleLevel, bRate:.5, bPitch:.5, glide:STREAM.glide / 1.5 });
+const windPreset   = () => ({ ...bedPreset(WIND), gust:WIND.gust, gustSp:.5, howl:WIND.howlLevel, howlP:.5 });
+const nightPreset  = () => ({ ...bedPreset(NIGHT), cricket:NIGHT.cricketLevel, chirp:.5, cPitch:.5 });
 const PRESETS = [
   { name:'깊은 우주', icon:tile('orbit','#6d7cff','#3a2a9e'), v:{ brown:.55, deep:.9, subf:.25, bass:.55, tone:.45, warm:.45, width:.85, swell:.3, rate:.15 } },
-  { name:'화이트',   icon:tile('wave','#c9ced8','#6b7280'), v:{ white:.9, tone:1, width:.6 } },
-  { name:'핑크',     icon:tile('flower','#ff9ccf','#c2448a'), v:{ pink:.95, tone:1, width:.6 } },
-  { name:'브라운',   icon:tile('mountain','#d6a26f','#7a4a24'), v:{ brown:.95, bass:.25, tone:.85, width:.6 } },
+  // 화이트·핑크·브라운은 그 색에 가장 가까운 실제 소리(레퍼런스 녹음에 맞춘 배경)로 들려준다
+  { name:'샤워 물줄기', sub:'화이트 노이즈', icon:tile('shower','#d5e4f2','#5b7a99'), scene:'shower', v:bedPreset(SM.shower) },
+  { name:'폭포',     sub:'핑크 노이즈', icon:tile('droplets','#ff9ccf','#7d4fd0'), scene:'waterfall', v:bedPreset(SM.waterfall) },
+  { name:'선풍기',   sub:'브라운 노이즈', icon:tile('fan','#d6a26f','#7a4a24'), scene:'fan', v:bedPreset(SM.fan) },
   { name:'바다 파도', icon:tile('waves','#5fd4e6','#1f6fb8'), v:{ pink:.45, brown:.7, deep:.35, subf:.35, tone:.8, swell:.9, rate:.4, width:1, warm:.2 } },
   { name:'빗소리',   icon:tile('rain','#7cc4ff','#2f5fd0'), scene:'rain', v:rainPreset() },
+  { name:'시냇물',   icon:tile('droplet','#7fe3ff','#1f8fb8'), scene:'stream', v:streamPreset() },
+  { name:'바람',     icon:tile('wind','#cfe0ee','#5a7690'), scene:'wind', v:windPreset() },
+  { name:'여름밤',   icon:tile('moonStar','#a8e6a0','#25507a'), scene:'night', v:nightPreset() },
   { name:'기차',     icon:tile('train','#9aa7ff','#3b3f8f'), scene:'train', v:trainPreset() },
   { name:'벽난로',   icon:tile('flame','#ffb86b','#d9452b'), scene:'fire', v:firePreset() },
   { name:'비행기 객실', icon:tile('plane','#9fb7d6','#3f5878'), v:{ brown:.85, deep:.6, subf:.65, bass:.45, tone:.4, warm:.3, width:.35, hpf:.22 } },
@@ -431,12 +466,47 @@ const SCENES = {
       [kHz(FIRE.crackleHz), 'kHz', '타닥 공진 중심<br>타격 스펙트럼 중심'],
       [Math.round(FIRE.popHz), 'Hz', '‘펑’ 공진 중심<br>타격 300–1500 Hz 피크'],
       [Math.round(FIRE.flicker * 100), '%', '불꽃 일렁임<br>배경 세기의 짧은 변동']] },
+  stream: { name:'시냇물', icon:tile('droplet','#7fe3ff','#1f8fb8'), keys:['bubble'], desc:'돌 틈을 졸졸 흐르는 개울',
+    how:'개울 소리를 분석해 물 흐름의 넓은 쏴— 위에 <b>공기방울</b>을 푸아송 과정으로 터뜨립니다. 물속 공기방울은 크기에 따라 정해진 높이로 울리고(Minnaert 공명), 터지면서 음높이가 올라가 ‘또르륵’ 소리가 납니다.',
+    tiles:a => [[STREAM.rate.toFixed(0), '/초', '물방울 빈도 λ<br>검출기 불감 시간 보정'],
+      [Math.round(STREAM.bubbleHz * STREAM.pitch), 'Hz', '물방울 중심 높이<br>타격 저역 피크 × 피팅 배수'],
+      ['×' + (1 + STREAM.glide).toFixed(1), '', '터지며 오르는 음높이<br>감쇠 시간당'],
+      [a.transient.ioi_cv_dead_time.toFixed(2), 'CV', '물방울 간격 변동계수<br>푸아송 과정이면 1']] },
+  wind: { name:'바람', icon:tile('wind','#cfe0ee','#5a7690'), keys:['gust', 'howl'], desc:'창밖으로 불어 가는 바람',
+    how:'바람 소리를 분석해 넓은 노이즈를 <b>무작위 돌풍</b>으로 밀고 당깁니다. 돌풍은 규칙적인 파도와 달리 평활한 노이즈라 매번 다르게 불고, 셀수록 공진 휘파람이 커지고 높아집니다.',
+    tiles:a => [[Math.round(WIND.gust * 100), '%', '돌풍 깊이<br>2초 단위 세기 변동'],
+      [(1 / WIND.gustHz).toFixed(0), '초', '돌풍 주기<br>세기 엔벨로프 자기상관'],
+      [Math.round(WIND.howlHz), 'Hz', '휘파람 중심<br>스펙트럼 피팅 격자'],
+      [Math.round(a.rms.slow_cv * 100), '%', '레퍼런스 세기 변동<br>2초 창 변동계수']] },
+  night: { name:'여름밤', icon:tile('moonStar','#a8e6a0','#25507a'), keys:['cricket'], desc:'풀숲에서 들려오는 풀벌레 소리',
+    how:'여름밤 풀벌레 녹음에서 울음의 높이, 울음 간격, 한 울음 안의 펄스 빈도를 재어 <b>풀벌레 세 마리</b>를 만듭니다. 마리마다 높이·간격·자리가 조금씩 달라 서로 엇갈리며 웁니다.',
+    tiles:a => [[kHz(NIGHT.cricketHz), 'kHz', '울음 높이<br>2–10 kHz 스펙트럼 피크'],
+      [NIGHT.period.toFixed(2), '초', '울음 간격<br>울음 대역 엔벨로프 자기상관'],
+      [Math.round(NIGHT.pulseHz), 'Hz', '펄스 빈도<br>1.3 ms 엔벨로프 자기상관'],
+      [NIGHT.pulses, '개', '울음당 펄스<br>간격 × 점유율 × 펄스 빈도']] },
+  shower: { name:'샤워 물줄기', bed:true, icon:tile('shower','#d5e4f2','#5b7a99'), desc:'화이트 노이즈에 가장 가까운 소리',
+    how:'화이트 노이즈는 모든 높이의 소리가 고르게 섞인 ‘쏴—’입니다. 실제 샤워 녹음의 소리 색을 1/3옥타브 단위로 재어, 엔진의 노이즈를 <b>어떤 비율로 섞고 어디서 깎아야</b> 같은 색이 되는지 찾았습니다.', tiles:bedTiles('shower') },
+  waterfall: { name:'폭포', bed:true, icon:tile('droplets','#ff9ccf','#7d4fd0'), desc:'핑크 노이즈에 가장 가까운 소리',
+    how:'핑크 노이즈는 높은 소리일수록 조금씩 약해져 화이트보다 부드럽게 들립니다. 실제 폭포 녹음의 소리 색을 1/3옥타브 단위로 재어, 엔진의 노이즈를 <b>어떤 비율로 섞고 어디서 깎아야</b> 같은 색이 되는지 찾았습니다.', tiles:bedTiles('waterfall') },
+  fan: { name:'선풍기', bed:true, icon:tile('fan','#d6a26f','#7a4a24'), desc:'브라운 노이즈에 가장 가까운 소리',
+    how:'브라운 노이즈는 낮은 소리가 훨씬 센 묵직한 ‘웅—’입니다. 실제 선풍기 녹음의 소리 색을 1/3옥타브 단위로 재어, 엔진의 노이즈를 <b>어떤 비율로 섞고 어디서 깎아야</b> 같은 색이 되는지 찾았습니다.', tiles:bedTiles('fan') },
 };
+// 배경만 있는 장면의 수치: 레퍼런스의 소리 색(스펙트럼 기울기)과 밝기, 피팅 결과
+function bedTiles(k) {
+  return a => {
+    const f = SCENE_REFS[k] && SCENE_REFS[k].fit;
+    return [[a.spectral.slope_db_per_oct.toFixed(1), 'dB/oct', '소리 색(스펙트럼 기울기)<br>화이트 0 · 핑크 −3 · 브라운 −6'],
+      [hz(a.spectral.centroid_hz.median), '', '스펙트럼 중심<br>소리의 밝기'],
+      [hz(SM[k].lpHz), '', '로우패스 컷오프<br>스펙트럼 피팅'],
+      [f ? f.band_rms_error_db : '—', 'dB', '레퍼런스와 차이<br>1/3옥타브 대역 평균']];
+  };
+}
 // 지금 켜진 장면: 마지막으로 고른 장면 프리셋이 아직 들리면 그것, 아니면 사건 레이어가 켜진 첫 장면
 function activeScene() {
-  const on = k => SCENES[k].keys.some(x => state.v[x] > .02);
+  // 배경만 있는 장면은 그 프리셋을 고른 동안만(슬라이더를 만지면 '사용자 설정'이 된다)
+  const on = k => SCENES[k].bed ? state.preset === SCENES[k].name : SCENES[k].keys.some(x => state.v[x] > .02);
   if (state.scene && SCENES[state.scene] && on(state.scene)) return state.scene;
-  return Object.keys(SCENES).find(on) || null;
+  return Object.keys(SCENES).filter(k => !SCENES[k].bed).find(on) || null;
 }
 let shownScene;
 function renderScene() {
@@ -465,7 +535,9 @@ function renderScene() {
   }
   if (f) src.append(document.createElement('br'), `엔진 렌더 검증: 1/3옥타브 대역 오차 ${f.band_rms_error_db} dB · 타격 성분 ${Math.round(f.percussive_ratio * 100)}% (레퍼런스 ${Math.round(a.transient.percussive_ratio * 100)}%)`);
 }
-const TYPES = [['white','White'],['pink','Pink'],['brown','Brown']];
+// 노이즈 색 전환: 이름 대신 들리는 느낌으로(툴팁에 원래 이름과 비슷한 소리)
+const TYPES = [['white','밝게','화이트 노이즈 — 샤워 물줄기처럼 고르고 밝은 쏴—'],['pink','부드럽게','핑크 노이즈 — 폭포처럼 부드러운 물소리'],
+  ['brown','묵직하게','브라운 노이즈 — 선풍기처럼 낮고 묵직한 웅—']];
 
 // ── 상태 ───────────────────────────────────────────────────
 const LS = 'deepnoise.v1';
@@ -483,8 +555,10 @@ function engineParams() {
     // 레퍼런스에서 정해지는 고정 파라미터
     21, RAIN.tokHz, 22, RAIN.tukHz, 24, RAIN.decayMs, 26, RAIN.pitMul,      // 빗소리: 톡·툭 중심, 임펄스 감쇠, 잔빗소리 빈도 배수
     31, TRAIN.thumpHz, 32, TRAIN.knockHz,                                   // 기차: 쿵·덩 중심
-    36, FIRE.clusterSize, 37, FIRE.crackleHz, 40, FIRE.popHz];              // 벽난로: 군집 크기, 타닥·펑 중심
-  for (const c of CONTROLS) p.push(c.id, mapOf(c)(state.v[c.key]));
+    36, FIRE.clusterSize, 37, FIRE.crackleHz, 40, FIRE.popHz,               // 벽난로: 군집 크기, 타닥·펑 중심
+    43, STREAM.bubbleHz,                                                    // 시냇물: 방울 중심
+    54, NIGHT.pulses, 55, NIGHT.pulseHz];                                   // 여름밤: 울음당 펄스 수·펄스 빈도
+  for (const c of CONTROLS) for (const [id, f] of sends(c)) p.push(id, f(state.v[c.key]));
   return p;
 }
 
@@ -515,7 +589,7 @@ function paint(inp) {
 function setCtl(key, v) {
   const c = inputs[key];
   state.v[key] = v; c.inp.value = v; c.upd();
-  setParam(c.def.id, mapOf(c.def)(v));
+  for (const [id, f] of sends(c.def)) setParam(id, f(v));
 }
 for (const c of CONTROLS) {
   const wrap = document.createElement('div'); wrap.className = 'ctl';
@@ -528,7 +602,7 @@ for (const c of CONTROLS) {
   const upd = () => { o.textContent = c.fmt(+inp.value); paint(inp); };
   inp.addEventListener('input', () => {
     state.v[c.key] = +inp.value; upd();
-    setParam(c.id, mapOf(c)(+inp.value));
+    for (const [id, f] of sends(c)) setParam(id, f(+inp.value));
     if (state.preset && !c.keep) state.preset = null;
     renderPreset(); save();
   });
@@ -542,7 +616,7 @@ vol.addEventListener('input', () => { state.vol = +vol.value; paint(vol); setPar
 const presetBox = $('presets');
 for (const p of PRESETS) {
   const b = document.createElement('button'); b.className = 'chip'; b.dataset.name = p.name;
-  b.innerHTML = `${p.icon}${p.name}`;
+  b.innerHTML = `${p.icon}<span>${p.name}${p.sub ? `<small>${p.sub}</small>` : ''}</span>`;
   b.onclick = () => applyPreset(p);
   presetBox.appendChild(b);
 }
@@ -556,8 +630,8 @@ function applyPreset(p) {
 // 노이즈 타입 전환: 현재 레벨을 유지한 채 White/Pink/Brown 중 하나로 교체.
 // 엔진의 파라미터 스무딩(약 70ms)이 크로스페이드 역할을 해 클릭 없이 바뀐다.
 const typeBox = $('types');
-for (const [key, label] of TYPES) {
-  const b = document.createElement('button'); b.className = 'seg'; b.dataset.key = key; b.textContent = label;
+for (const [key, label, tip] of TYPES) {
+  const b = document.createElement('button'); b.className = 'seg'; b.dataset.key = key; b.textContent = label; b.title = tip;
   b.onclick = () => {
     const level = Math.max(...TYPES.map(([k]) => state.v[k])) || .8;
     for (const [k] of TYPES) setCtl(k, k === key ? level : 0);
@@ -570,8 +644,8 @@ function renderPreset() {
   for (const b of presetBox.children) b.classList.toggle('on', b.dataset.name === state.preset);
   $('pname').textContent = state.preset || '사용자 설정';
   const v = state.v, m = [];
-  const layers = [['White',v.white],['Pink',v.pink],['Brown',v.brown],['Deep',v.deep],['Rain',Math.max(v.rain,v.pit)],
-    ['Train',v.clack],['Fire',v.crackle]].filter(x=>x[1]>.02);
+  const layers = [['밝은 쏴—',v.white],['부드러운 물소리',v.pink],['묵직한 웅—',v.brown],['서브 저음',v.deep],['빗방울',Math.max(v.rain,v.pit)],
+    ['레일',v.clack],['장작',v.crackle],['물방울',v.bubble],['돌풍',Math.max(v.gust,v.howl)],['풀벌레',v.cricket]].filter(x=>x[1]>.02);
   m.push(layers.length ? layers.map(x=>x[0]).join(' + ') : '무음');
   if (v.deep > .02) m.push('서브 ' + Math.round(logMap(25,120)(v.subf)) + ' Hz');
   if (v.hpf >= .005) m.push('HPF ' + hz(logMap(10,2000)(v.hpf)));

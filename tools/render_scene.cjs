@@ -1,13 +1,13 @@
 // 장면 엔진 오프라인 렌더: 레퍼런스 프로파일로 바인딩한 엔진 출력을 WAV로 저장한다.
 // 같은 분석기(analyze_reference.py)로 다시 분석해 레퍼런스와 비교하는 검증 루프용.
-// 사용법: node tools/render_scene.cjs <rain|train|fire> [초=60] [출력=reference/<장면>_render.wav] [덮어쓸 파라미터.json]
+// 사용법: node tools/render_scene.cjs <장면> [초=60] [출력=reference/<장면>_render.wav] [덮어쓸 파라미터.json]
 //   덮어쓸 파라미터: {"엔진 id": 값} — tools/fit_reference.py가 레이어별 기저 렌더에 사용
 const fs = require('fs'), path = require('path');
 const { SCENE_MODELS, sceneBinding } = require('../src/scene_model.js');
 
 const root = path.join(__dirname, '..');
 const scene = process.argv[2];
-if (!SCENE_MODELS[scene]) { console.error('장면: rain | train | fire'); process.exit(2); }
+if (!SCENE_MODELS[scene]) { console.error('장면: ' + Object.keys(SCENE_MODELS).join(' | ')); process.exit(2); }
 const sec = +(process.argv[3] || 60);
 const outPath = path.resolve(root, process.argv[4] || `reference/${scene}_render.wav`);
 const profPath = path.join(root, `src/profiles/${scene}.json`);

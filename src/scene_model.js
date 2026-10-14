@@ -1,4 +1,5 @@
-// 레퍼런스 분석(JSON, tools/analyze_reference.py) → 장면(빗소리·기차·벽난로) 엔진 물리 파라미터.
+// 레퍼런스 분석(JSON, tools/analyze_reference.py) → 장면 엔진 물리 파라미터.
+//   사건 장면: 빗소리·기차·벽난로·시냇물·바람·여름밤 / 배경만 있는 장면: 샤워·폭포·선풍기
 // build.cjs가 페이지에 인라인하고, tools/render_scene.cjs·fit_reference.py도 같은 함수를 쓴다.
 // 프로파일이 없으면 기본값, "fit" 블록이 있으면 피팅된 레이어 레벨·톤을 우선한다.
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -12,7 +13,8 @@ function bedFromProfile(a, f, d) {
     // 배경 노이즈의 L/R 상관이 1 − 폭이 되도록(폭 1 = 완전 독립)
     width: a.stereo_corr != null ? clamp(1 - a.stereo_corr, .1, 1) : d.width,
   };
-  if (f) for (const k of ['white', 'pink', 'brown', 'deep', 'subHz', 'lpHz', 'lpQ', 'lpSlope', 'air']) if (f[k] != null) m[k] = f[k];
+  // hpHz는 하이패스를 격자에서 고른 피팅에만 있다(없으면 위의 누적 에너지 규칙)
+  if (f) for (const k of ['white', 'pink', 'brown', 'deep', 'subHz', 'lpHz', 'lpQ', 'lpSlope', 'air', 'hpHz', 'makeup']) if (f[k] != null) m[k] = f[k];
   return m;
 }
 
@@ -96,21 +98,95 @@ function fireFromProfile(ref) {
   return m;
 }
 
-const SCENE_MODELS = { rain: rainFromProfile, train: trainFromProfile, fire: fireFromProfile };
+// 시냇물: 물 흐름의 넓은 쏴—(베드) + 푸아송 도착 공기방울(음높이가 올라가는 사인)
+function streamFromProfile(ref) {
+  const d = { rate:25, bubbleHz:800, glide:.6, bubbleLevel:.4, pitch:1,
+              white:.1, pink:.4, brown:.3, deep:.05, subHz:45, lpHz:9000, lpQ:.707, lpSlope:0, air:0, hpHz:60, swell:0, width:.7 };
+  const a = ref && ref.analysis;
+  if (!a) return d;
+  const t = a.transient, f = ref.fit;
+  const m = {
+    ...d,
+    rate:     clamp(t.rate_corrected_hz ?? d.rate, 5, 150),            // 불감 시간 보정된 푸아송 λ
+    bubbleHz: clamp(t.low_peak_hz ?? d.bubbleHz, 300, 1500),           // 타격 순간 300–1500 Hz 피크
+    ...bedFromProfile(a, f, d),
+  };
+  if (f && f.bubbleLevel != null) m.bubbleLevel = f.bubbleLevel;
+  if (f && f.pitch) m.pitch = f.pitch;                                  // 피팅된 방울 음높이 배수
+  return m;
+}
+
+// 바람: 돌풍 엔벨로프가 흔드는 넓은 노이즈 + 공진 휘파람
+function windFromProfile(ref) {
+  const d = { gust:.6, gustHz:.12, howlHz:500, howlLevel:.3,
+              white:0, pink:.4, brown:.6, deep:.1, subHz:45, lpHz:3000, lpQ:.707, lpSlope:1, air:0, hpHz:40, swell:0, width:.9 };
+  const a = ref && ref.analysis;
+  if (!a) return d;
+  const f = ref.fit;
+  const m = {
+    ...d,
+    // 느린 세기 변동(2초 창 CV)이 클수록 돌풍이 깊다. 엔진 돌풍 게인 1 + 0.55·깊이·N(0,1)의 CV ≈ 0.55·깊이
+    gust:   clamp(a.rms.slow_cv / .55, .2, 1),
+    gustHz: clamp(a.rms.gust_hz ?? d.gustHz, .03, .5),                 // 세기 엔벨로프 자기상관 → 돌풍 속도
+    ...bedFromProfile(a, f, d),
+    swell:  0,                                                          // 주기적인 스웰 대신 무작위 돌풍
+  };
+  if (f && f.howlLevel != null) m.howlLevel = f.howlLevel;
+  if (f && f.pitch) m.howlHz = f.pitch;                                 // 피팅 격자 값 = 휘파람 중심(Hz)
+  return m;
+}
+
+// 여름밤: 낮은 밤공기(베드) + 풀벌레 세 마리의 '찌르르'(사인 펄스 묶음)
+function nightFromProfile(ref) {
+  const d = { cricketHz:4500, cricket2Hz:0, period:.9, pulses:3, pulseHz:30, cricketLevel:.3,
+              white:0, pink:.2, brown:.3, deep:.05, subHz:45, lpHz:10000, lpQ:.707, lpSlope:0, air:0, hpHz:80, swell:0, width:.8 };
+  const a = ref && ref.analysis;
+  if (!a) return d;
+  const to = a.tonal || {}, f = ref.fit;
+  const pulseHz = to.pulse_hz && to.pulse_strength > .05 ? clamp(to.pulse_hz, 10, 80) : d.pulseHz;
+  const period = to.period_strength >= .1 ? clamp(to.period_s, .2, 3) : d.period;
+  const m = {
+    ...d,
+    cricketHz: clamp(to.peak_hz ?? d.cricketHz, 2000, 9000),            // 2–10 kHz 평균 스펙트럼 피크
+    cricket2Hz: to.peak2_hz ? clamp(to.peak2_hz, 2000, 9000) : 0,        // 다른 종의 울음 높이(없으면 0)
+    pulseHz, period,
+    // 한 울음의 길이 ≈ 울음 주기 × 점유율 → 펄스 수
+    pulses:    clamp(Math.round(period * (to.duty ?? .3) * pulseHz), 1, 40),
+    ...bedFromProfile(a, f, d),
+  };
+  if (f && f.cricketLevel != null) m.cricketLevel = f.cricketLevel;
+  return m;
+}
+
+// 배경만 있는 장면(샤워·폭포·선풍기): 피팅된 노이즈 색과 톤이 전부다
+const bedScene = d => ref => {
+  const a = ref && ref.analysis;
+  return a ? { ...d, ...bedFromProfile(a, ref.fit, d) } : d;
+};
+const showerFromProfile    = bedScene({ white:.8, pink:.2, brown:0, deep:0, subHz:45, lpHz:12000, lpQ:.707, lpSlope:0, air:0, hpHz:150, swell:0, width:.8 });
+const waterfallFromProfile = bedScene({ white:.1, pink:.8, brown:.3, deep:.2, subHz:45, lpHz:8000, lpQ:.707, lpSlope:0, air:0, hpHz:30, swell:0, width:1 });
+const fanFromProfile       = bedScene({ white:0, pink:.2, brown:.9, deep:.3, subHz:60, lpHz:2500, lpQ:.707, lpSlope:1, air:0, hpHz:40, swell:0, width:.5 });
+
+const SCENE_MODELS = { rain: rainFromProfile, train: trainFromProfile, fire: fireFromProfile,
+  stream: streamFromProfile, wind: windFromProfile, night: nightFromProfile,
+  shower: showerFromProfile, waterfall: waterfallFromProfile, fan: fanFromProfile };
 
 // 엔진 파라미터 바인딩 {id: 값} — 해당 장면만 켜고 다른 장면의 사건 레이어는 끈다.
 // 볼륨(0)·게이트(18)·페이드(19, 20)·스웰 속도(11)는 호출하는 쪽이 정한다.
 function sceneBinding(scene, m) {
   const p = {
     1: m.white || 0, 2: m.pink || 0, 3: m.brown || 0, 4: m.deep || 0, 5: m.subHz, 6: 0, 7: m.lpHz, 8: m.air || 0,
-    9: m.width, 10: m.swell, 14: 0, 15: m.lpQ || .707, 16: m.hpHz, 17: .707, 28: m.lpSlope ?? 1,
-    12: 0, 25: 0, 29: 0, 34: 0, 39: 0, 27: 1, 33: 1,
+    9: m.width, 10: m.swell, 14: 0, 15: m.lpQ || .707, 16: m.hpHz, 17: .707, 28: m.lpSlope ?? 1, 57: m.makeup || 1,
+    12: 0, 25: 0, 29: 0, 34: 0, 39: 0, 41: 0, 46: 0, 48: 0, 51: 0, 27: 1, 33: 1, 45: 1,
   };
   if (scene === 'rain') Object.assign(p, { 12: m.dropLevel, 13: m.rate, 21: m.tokHz, 22: m.tukHz, 23: m.pTok,
     24: m.decayMs, 25: m.pitLevel, 26: m.pitMul });
   if (scene === 'train') Object.assign(p, { 29: m.clackLevel, 30: m.period, 31: m.thumpHz, 32: m.knockHz });
   if (scene === 'fire') Object.assign(p, { 34: m.crackleLevel, 35: m.clusterRate, 36: m.clusterSize, 37: m.crackleHz,
     38: m.popRatio, 39: m.flicker, 40: m.popHz });
+  if (scene === 'stream') Object.assign(p, { 41: m.bubbleLevel, 42: m.rate, 43: m.bubbleHz, 44: m.glide, 45: m.pitch });
+  if (scene === 'wind') Object.assign(p, { 46: m.gust, 47: m.gustHz, 48: m.howlLevel, 49: m.howlHz });
+  if (scene === 'night') Object.assign(p, { 51: m.cricketLevel, 52: m.period, 53: m.cricketHz, 54: m.pulses, 55: m.pulseHz, 56: m.cricket2Hz });
   return p;
 }
-if (typeof module !== 'undefined') module.exports = { rainFromProfile, trainFromProfile, fireFromProfile, SCENE_MODELS, sceneBinding };
+if (typeof module !== 'undefined') module.exports = { SCENE_MODELS, sceneBinding };
