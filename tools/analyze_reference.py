@@ -13,6 +13,9 @@
 - periodicity: 타격 엔벨로프 자기상관의 0.3–3초 최대 피크 — 기차 레일 이음매 주기
 - rms.fast_cv: 배경(하모닉) 성분 세기의 2초 창 안 변동 — 불꽃 일렁임
 - stereo_corr: L/R 상관
+- tonal:    2–10 kHz 평균 스펙트럼의 가장 뾰족한 피크(풀벌레 울음 높이)와 돌출 정도, 1/3 oct 넘게 떨어진 두 번째 피크(다른 종),
+            그 대역 엔벨로프의 울음 주기(0.15–3초)·펄스 빈도(8–60 ms 자기상관)·울음 점유율
+- rms.gust_hz: 0.5초 평활 세기 엔벨로프의 자기상관이 1/e가 되는 시간 → 돌풍 속도
 엔진 파라미터로의 변환은 src/scene_model.js가 담당한다.
 """
 import argparse
@@ -120,6 +123,46 @@ def analyze(path):
     fast = [bed_env[i:i + win].std() / (bed_env[i:i + win].mean() + 1e-12)
             for i in range(0, len(bed_env) - win + 1, win)]
     hi_e = on_spec[(freqs >= 2000) & (freqs < 12000)].sum()
+
+    # 돌풍 속도: 0.5초 평활 세기 엔벨로프의 자기상관이 1/e로 떨어지는 지연 τ.
+    #   엔진의 돌풍(같은 컷오프 fc의 1차 LP 두 단)은 τ ≈ 2.15/(2π·fc) → fc ≈ 0.34/τ
+    k_g = max(1, int(0.5 * per_s))
+    g_env = np.convolve(rms, np.ones(k_g) / k_g, mode="valid")
+    g_env = g_env - g_env.mean()
+    g_ac = np.correlate(g_env, g_env, mode="full")[len(g_env) - 1:]
+    g_ac = g_ac / (g_ac[0] + 1e-20)
+    k_e = int(np.argmax(g_ac < 1 / np.e)) if (g_ac < 1 / np.e).any() else len(g_ac) - 1
+    gust_tau = max(k_e, 1) / per_s
+
+    # 음높이가 뚜렷한 고역 성분(풀벌레): 2–10 kHz 평균 스펙트럼의 피크와 주변 중앙값 대비 돌출(dB)
+    t_sel = (freqs >= 2000) & (freqs <= 10000)
+    t_db = 10 * np.log10(mean_pow[t_sel] + 1e-20)
+    k_t = int(np.argmax(t_db))
+    tonal_hz = freqs[t_sel][k_t]
+    tonal_prom = t_db[k_t] - np.median(t_db)
+    # 두 번째 종: 첫 피크에서 1/3 oct 넘게 떨어진 곳의 가장 높은 피크(주변 중앙값보다 6 dB 이상 솟을 때만)
+    far = np.abs(np.log2(freqs[t_sel] / tonal_hz)) > 1 / 3
+    k_2 = int(np.argmax(np.where(far, t_db, -np.inf)))
+    tonal2_hz = freqs[t_sel][k_2] if t_db[k_2] - np.median(t_db) >= 6 else None
+    # 피크 ±1/6 oct 대역 엔벨로프: 울음 주기(0.15–3초)와 점유율(평균보다 센 프레임 비율)
+    pk_sel = (freqs >= tonal_hz * 2 ** (-1 / 6)) & (freqs <= tonal_hz * 2 ** (1 / 6))
+    h_env = np.sqrt(S[pk_sel].sum(axis=0))
+    duty = float((h_env > h_env.mean()).mean())
+    h0 = h_env - h_env.mean()
+    h_ac = np.correlate(h0, h0, mode="full")[len(h0) - 1:]
+    h_ac = h_ac / (h_ac[0] + 1e-20)
+    h_pk = [k for k in find_peaks(h_ac)[0] if 0.15 <= lag[k] <= 3.0]
+    k_h = max(h_pk, key=lambda k: h_ac[k]) if h_pk else int(np.searchsorted(lag, 1.0))
+    #   펄스 빈도: 1.3 ms 간격의 고운 엔벨로프로 8–60 ms 지연의 자기상관 피크
+    S2 = np.abs(librosa.stft(y[: int(60 * sr)], n_fft=512, hop_length=64)) ** 2
+    f2 = librosa.fft_frequencies(sr=sr, n_fft=512)
+    p_env = np.sqrt(S2[(f2 >= tonal_hz * 0.8) & (f2 <= tonal_hz * 1.25)].sum(axis=0))
+    p_env = p_env - p_env.mean()
+    p_ac = np.correlate(p_env, p_env, mode="full")[len(p_env) - 1:]
+    p_ac = p_ac / (p_ac[0] + 1e-20)
+    p_lag = np.arange(len(p_ac)) * 64 / sr
+    p_pk = [k for k in find_peaks(p_ac)[0] if 0.008 <= p_lag[k] <= 0.06]
+    k_pp = max(p_pk, key=lambda k: p_ac[k]) if p_pk else None
     lo_e = on_spec[lo_sel].sum()
 
     # 감쇠: 온셋 이후 타격 성분 에너지가 피크 대비 -20 dB가 되는 데 걸리는 시간
@@ -158,6 +201,14 @@ def analyze(path):
             "cv": r(rms.std() / (rms.mean() + 1e-12)),
             "slow_cv": r(slow.std() / (slow.mean() + 1e-12)) if len(slow) > 1 else 0.0,
             "fast_cv": r(np.mean(fast)) if fast else 0.0,
+            "gust_hz": r(0.34 / gust_tau),
+        },
+        "tonal": {
+            "peak_hz": r(tonal_hz, 1), "prominence_db": r(tonal_prom, 1),
+            "peak2_hz": r(tonal2_hz, 1) if tonal2_hz else None,
+            "period_s": r(lag[k_h]), "period_strength": r(h_ac[k_h]), "duty": r(duty),
+            "pulse_hz": r(1 / p_lag[k_pp], 1) if k_pp else None,
+            "pulse_strength": r(p_ac[k_pp]) if k_pp else None,
         },
         "periodicity": {"period_s": r(lag[k_p]), "strength": r(ac[k_p])},
         "stereo_corr": r(stereo_corr),
@@ -202,6 +253,11 @@ COMPARE = [
     ("주기성 세기", ("periodicity", "strength")),
     ("배경 일렁임 CV", ("rms", "fast_cv")),
     ("L/R 상관", ("stereo_corr",)),
+    ("돌풍 속도 (Hz)", ("rms", "gust_hz")),
+    ("고역 피크 (Hz)", ("tonal", "peak_hz")),
+    ("고역 피크 돌출 (dB)", ("tonal", "prominence_db")),
+    ("울음 주기 (초)", ("tonal", "period_s")),
+    ("펄스 빈도 (Hz)", ("tonal", "pulse_hz")),
 ]
 
 

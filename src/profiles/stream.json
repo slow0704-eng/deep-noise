@@ -1,0 +1,130 @@
+{
+  "source": {
+    "url": "https://www.youtube.com/watch?v=UJZxtO9XNno",
+    "id": "UJZxtO9XNno",
+    "title": "Gentle Stream Sounds | Relaxing Stream Sounds use for Relaxation, Sleep, insomnia",
+    "channel": "The Relaxed Guy",
+    "start_s": 300,
+    "duration_s": 180,
+    "selection": {
+      "rank": 1,
+      "score": 0.921,
+      "views": 7336197,
+      "likes": 50857,
+      "comment_count": 2100,
+      "followers": 1630000,
+      "comments": {
+        "signal": 0.35,
+        "positive": 31,
+        "negative": 5
+      }
+    }
+  },
+  "analysis": {
+    "file": "stream_ref.wav",
+    "sample_rate": 48000,
+    "duration_s": 180.0,
+    "spectral": {
+      "centroid_hz": {
+        "mean": 2530.5,
+        "median": 2380.2,
+        "p10": 1687.6,
+        "p90": 3557.1
+      },
+      "rolloff85_hz_median": 3914.1,
+      "slope_db_per_oct": -3.03,
+      "cumulative_1pct_hz": 281.2,
+      "band_energy": {
+        "20-60": 0.0014,
+        "60-250": 0.0059,
+        "250-1000": 0.3025,
+        "1000-4000": 0.5164,
+        "4000-8000": 0.106,
+        "8000-16000": 0.0672,
+        "16000-24000": 0.0003
+      }
+    },
+    "bed": {
+      "slope_db_per_oct": -3.7,
+      "centroid_hz": 1904.1,
+      "rolloff85_hz": 2789.1,
+      "band_energy": {
+        "20-60": 0.0014,
+        "60-250": 0.0065,
+        "250-1000": 0.3867,
+        "1000-4000": 0.503,
+        "4000-8000": 0.0626,
+        "8000-16000": 0.0397,
+        "16000-24000": 0.0002
+      }
+    },
+    "rms": {
+      "mean": 0.06201,
+      "std": 0.09895,
+      "mean_db": -24.15,
+      "cv": 1.596,
+      "slow_cv": 0.202,
+      "fast_cv": 0.123,
+      "gust_hz": 1.028
+    },
+    "tonal": {
+      "peak_hz": 2039.1,
+      "prominence_db": 10.3,
+      "period_s": 0.427,
+      "period_strength": 0.036,
+      "duty": 0.377,
+      "pulse_hz": 18.3,
+      "pulse_strength": 0.019
+    },
+    "periodicity": {
+      "period_s": 2.507,
+      "strength": 0.036
+    },
+    "stereo_corr": 0.969,
+    "transient": {
+      "percussive_ratio": 0.758,
+      "onset_count": 2467,
+      "onset_rate_hz": 13.71,
+      "detector_dead_time_ms": 32.0,
+      "rate_corrected_hz": 24.41,
+      "ioi_ms_mean": 73.0,
+      "ioi_cv": 0.496,
+      "poisson_ks": 0.355,
+      "poisson_ks_dead_time": 0.129,
+      "ioi_cv_dead_time": 0.884,
+      "centroid_hz": 3726.8,
+      "low_peak_hz": 726.6,
+      "sub_peak_hz": 281.2,
+      "high_low_ratio": 1.382,
+      "band_energy": {
+        "20-60": 0.0006,
+        "60-250": 0.0024,
+        "250-1000": 0.2567,
+        "1000-4000": 0.3578,
+        "4000-8000": 0.2406,
+        "8000-16000": 0.141,
+        "16000-24000": 0.0004
+      },
+      "decay_ms_median": 53.3
+    }
+  },
+  "fit": {
+    "lpHz": 11742.3,
+    "lpQ": 0.707,
+    "lpSlope": 0,
+    "air": -0.7,
+    "pitch": 1.4,
+    "subHz": 50,
+    "hpHz": 281.2,
+    "band_rms_error_db": 1.99,
+    "percussive_ratio": 0.729,
+    "render_rms": 0.1173,
+    "render_peak": 0.712,
+    "makeup": 2.505,
+    "white": 0.252,
+    "pink": 0.233,
+    "brown": 0.0,
+    "deep": 1.0,
+    "bubbleLevel": 0.365
+  }
+}

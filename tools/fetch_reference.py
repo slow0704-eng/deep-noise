@@ -51,10 +51,10 @@ def to_wav(src, start, duration, out):
 def download_and_trim(url, js, start, duration, out):
     # yt-dlp의 --download-sections는 스트림을 실시간 속도로 읽어 느리므로,
     # 원본 오디오를 통째로 받은 뒤 ffmpeg로 구간만 자른다.
-    src_tmpl = str(out.parent / "_src.%(ext)s")
+    src_tmpl = str(out.parent / f"_src_{out.stem}.%(ext)s")   # 장면마다 따로(동시에 받아도 겹치지 않게)
     subprocess.run(ytdlp_cmd() + js + ["--no-playlist", "-f", "bestaudio", "--force-overwrites",
                                        "--no-progress", "-o", src_tmpl, url], check=True)
-    srcs = [p for p in out.parent.glob("_src.*") if p.suffix not in (".part", ".ytdl")]
+    srcs = [p for p in out.parent.glob(f"_src_{out.stem}.*") if p.suffix not in (".part", ".ytdl")]
     if not srcs:
         sys.exit("원본 오디오를 받지 못했습니다.")
     src = srcs[0]

@@ -1,0 +1,129 @@
+{
+  "source": {
+    "url": "https://www.youtube.com/watch?v=HchoJcYNYlU",
+    "id": "HchoJcYNYlU",
+    "title": "Relaxing Waterfall Sounds for Sleep | Fall Asleep & Stay Sleeping with Water White Noise | 10 Hours",
+    "channel": "Relaxing White Noise",
+    "start_s": 300,
+    "duration_s": 180,
+    "selection": {
+      "rank": 1,
+      "score": 0.844,
+      "views": 26406012,
+      "likes": 82311,
+      "comment_count": 4700,
+      "followers": 4530000,
+      "comments": {
+        "signal": 0.367,
+        "positive": 26,
+        "negative": 2
+      }
+    }
+  },
+  "analysis": {
+    "file": "waterfall_ref.wav",
+    "sample_rate": 48000,
+    "duration_s": 180.0,
+    "spectral": {
+      "centroid_hz": {
+        "mean": 948.6,
+        "median": 932.5,
+        "p10": 725.2,
+        "p90": 1190.2
+      },
+      "rolloff85_hz_median": 1078.1,
+      "slope_db_per_oct": -4.85,
+      "cumulative_1pct_hz": 70.3,
+      "band_energy": {
+        "20-60": 0.0058,
+        "60-250": 0.3983,
+        "250-1000": 0.4388,
+        "1000-4000": 0.1057,
+        "4000-8000": 0.0226,
+        "8000-16000": 0.0281,
+        "16000-24000": 0.0006
+      }
+    },
+    "bed": {
+      "slope_db_per_oct": -5.15,
+      "centroid_hz": 532.2,
+      "rolloff85_hz": 468.8,
+      "band_energy": {
+        "20-60": 0.0002,
+        "60-250": 0.5902,
+        "250-1000": 0.3399,
+        "1000-4000": 0.046,
+        "4000-8000": 0.0103,
+        "8000-16000": 0.0131,
+        "16000-24000": 0.0003
+      }
+    },
+    "rms": {
+      "mean": 0.93569,
+      "std": 0.36251,
+      "mean_db": -0.58,
+      "cv": 0.387,
+      "slow_cv": 0.053,
+      "fast_cv": 0.104,
+      "gust_hz": 0.885
+    },
+    "tonal": {
+      "peak_hz": 2015.6,
+      "prominence_db": 8.0,
+      "period_s": 0.448,
+      "period_strength": 0.044,
+      "duty": 0.458,
+      "pulse_hz": 62.5,
+      "pulse_strength": 0.033
+    },
+    "periodicity": {
+      "period_s": 2.699,
+      "strength": 0.031
+    },
+    "stereo_corr": 0.81,
+    "transient": {
+      "percussive_ratio": 0.239,
+      "onset_count": 2420,
+      "onset_rate_hz": 13.44,
+      "detector_dead_time_ms": 32.0,
+      "rate_corrected_hz": 23.6,
+      "ioi_ms_mean": 74.4,
+      "ioi_cv": 0.489,
+      "poisson_ks": 0.349,
+      "poisson_ks_dead_time": 0.132,
+      "ioi_cv_dead_time": 0.859,
+      "centroid_hz": 1279.3,
+      "low_peak_hz": 421.9,
+      "sub_peak_hz": 70.3,
+      "high_low_ratio": 0.252,
+      "band_energy": {
+        "20-60": 0.0693,
+        "60-250": 0.2078,
+        "250-1000": 0.4634,
+        "1000-4000": 0.1761,
+        "4000-8000": 0.0341,
+        "8000-16000": 0.0426,
+        "16000-24000": 0.0013
+      },
+      "decay_ms_median": null
+    }
+  },
+  "fit": {
+    "lpHz": 12000,
+    "lpQ": 1.4,
+    "lpSlope": 0,
+    "air": -0.5,
+    "pitch": 1.0,
+    "subHz": 100,
+    "hpHz": 120,
+    "band_rms_error_db": 0.56,
+    "percussive_ratio": 0.221,
+    "render_rms": 0.12,
+    "render_peak": 0.572,
+    "makeup": 2.226,
+    "white": 0.087,
+    "pink": 0.0,
+    "brown": 1.0,
+    "deep": 0.104
+  }
+}
