@@ -1,29 +1,27 @@
-// 빗소리 엔진 오프라인 렌더: 레퍼런스 프로파일로 바인딩한 엔진 출력을 WAV로 저장한다.
-// 같은 분석기(analyze_rain.py)로 다시 분석해 레퍼런스와 비교하는 검증 루프용.
-// 사용법: node tools/render_rain.cjs [초=60] [출력=reference/render.wav] [덮어쓸 파라미터.json]
-//   덮어쓸 파라미터: {"엔진 id": 값} — tools/fit_rain.py가 레이어별 기저 렌더에 사용
+// 장면 엔진 오프라인 렌더: 레퍼런스 프로파일로 바인딩한 엔진 출력을 WAV로 저장한다.
+// 같은 분석기(analyze_reference.py)로 다시 분석해 레퍼런스와 비교하는 검증 루프용.
+// 사용법: node tools/render_scene.cjs <rain|train|fire> [초=60] [출력=reference/<장면>_render.wav] [덮어쓸 파라미터.json]
+//   덮어쓸 파라미터: {"엔진 id": 값} — tools/fit_reference.py가 레이어별 기저 렌더에 사용
 const fs = require('fs'), path = require('path');
-const { rainFromProfile } = require('../src/rain_model.js');
+const { SCENE_MODELS, sceneBinding } = require('../src/scene_model.js');
 
 const root = path.join(__dirname, '..');
-const sec = +(process.argv[2] || 60);
-const outPath = path.resolve(root, process.argv[3] || 'reference/render.wav');
-const profPath = path.join(root, 'src/rain_profile.json');
+const scene = process.argv[2];
+if (!SCENE_MODELS[scene]) { console.error('장면: rain | train | fire'); process.exit(2); }
+const sec = +(process.argv[3] || 60);
+const outPath = path.resolve(root, process.argv[4] || `reference/${scene}_render.wav`);
+const profPath = path.join(root, `src/profiles/${scene}.json`);
 const ref = fs.existsSync(profPath) ? JSON.parse(fs.readFileSync(profPath, 'utf8')) : null;
-const m = rainFromProfile(ref);
+const m = SCENE_MODELS[scene](ref);
 
 const SR = 48000;
 const bytes = fs.readFileSync(path.join(root, 'dist/engine.wasm'));
 const e = new WebAssembly.Instance(new WebAssembly.Module(bytes),
   { m: { tan: Math.tan, sin: Math.sin, cos: Math.cos, log: Math.log, exp: Math.exp } }).exports;
 e.init(SR);
-const P = {
-  0: 1.5 * .6 * .6, 1: 0, 2: m.pink, 3: m.brown, 4: m.deep, 5: m.subHz, 6: 0, 7: m.lpHz, 8: m.air, 9: m.width,
-  10: m.swell, 11: .1, 12: m.dropLevel, 13: m.rate, 14: 0, 15: m.lpQ, 16: m.hpHz, 17: .707,
-  18: 1, 19: .005, 20: .8, 21: m.tokHz, 22: m.tukHz, 23: m.pTok, 24: m.decayMs, 25: m.pitLevel, 26: m.pitMul, 27: 1,
-  28: m.lpSlope,
-};
-if (process.argv[4]) Object.assign(P, JSON.parse(fs.readFileSync(process.argv[4], 'utf8')));
+// 볼륨 60%(페이지의 masterOf), 게이트 열림, 짧은 페이드 인
+const P = { 0: 1.5 * .6 * .6, 11: .1, 18: 1, 19: .005, 20: .8, ...sceneBinding(scene, m) };
+if (process.argv[5]) Object.assign(P, JSON.parse(fs.readFileSync(process.argv[5], 'utf8')));
 for (const [k, v] of Object.entries(P)) e.setParam(+k, v);
 e.snap();
 
@@ -50,6 +48,6 @@ pcm.writeUInt32LE(SR, 24); pcm.writeUInt32LE(SR * 4, 28); pcm.writeUInt16LE(4, 3
 pcm.write('data', 36); pcm.writeUInt32LE(n * 4, 40);
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, pcm);
-console.log(`렌더: ${path.relative(root, outPath)} ${sec}s, 피크 ${peak.toFixed(3)}, NaN ${bad}, ` +
+console.log(`렌더(${scene}): ${path.relative(root, outPath)} ${sec}s, 피크 ${peak.toFixed(3)}, NaN ${bad}, ` +
   `처리 ${ms.toFixed(0)} ms (실시간 대비 ×${(sec * 1000 / ms).toFixed(0)})`);
 console.log('바인딩된 파라미터:', JSON.stringify(m, (k, v) => typeof v === 'number' ? +v.toFixed(3) : v));

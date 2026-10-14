@@ -72,29 +72,44 @@ canvas#viz{display:block;width:100%;height:clamp(180px,26vw,280px);margin-top:cl
 .err{display:none;margin:24px auto 0;max-width:640px;padding:14px 18px;border-radius:14px;background:rgba(255,69,58,.12);color:#ff9f97;font-size:14px}
 
 /* ── 프리셋 ─────────────────────────────────── */
-.presets{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:clamp(48px,6vw,72px)}
+.presets{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:clamp(48px,6vw,72px)}
 .chip{border:1px solid transparent;background:var(--panel);color:var(--text);border-radius:22px;
   padding:26px 22px 22px;font-size:17px;font-weight:600;letter-spacing:-.02em;cursor:pointer;text-align:left;
-  display:flex;flex-direction:column;align-items:flex-start;gap:30px;min-height:150px;
+  display:flex;flex-direction:column;align-items:flex-start;gap:26px;min-height:140px;
   transition:background .3s var(--ease),border-color .3s,transform .3s var(--ease)}
-.chip span{font-size:34px;line-height:1}
+/* 아이콘 타일: 프리셋마다 그라데이션, 흰 선 아이콘(Lucide, ISC) */
+.ic{flex:none;width:46px;height:46px;border-radius:13px;display:grid;place-items:center;background:var(--g);
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.22),inset 0 1px 0 rgba(255,255,255,.18),0 8px 18px -8px var(--sh,rgba(0,0,0,.6))}
+.ic svg{width:24px;height:24px;fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.18))}
 .chip:hover{background:var(--panel2);transform:translateY(-2px)}
 .chip:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .chip.on{background:var(--panel2);border-color:rgba(255,255,255,.6)}
 
-/* ── 빗소리 엔진 ─────────────────────────────── */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:clamp(48px,6vw,72px)}
-.stat{background:var(--panel);border-radius:22px;padding:28px 24px 24px}
-.stat b{display:block;font-size:clamp(34px,4.2vw,52px);font-weight:700;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+/* ── 장면 패널(빗소리·기차·벽난로를 고르면 열림) ─────── */
+.scene{margin-top:14px;background:var(--panel);border-radius:28px;padding:30px 30px 18px;animation:rise .5s var(--ease)}
+.scene[hidden]{display:none}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.scene-head{display:flex;align-items:center;gap:16px;margin-bottom:28px}
+.scene-head h3{font-size:24px;font-weight:700;letter-spacing:-.025em;margin:0}
+.scene-head p{margin:4px 0 0;font-size:15px;color:var(--muted)}
+.sg[hidden]{display:none}
+details.more{border-top:1px solid var(--line);margin-top:6px;padding-top:16px}
+details.more summary{list-style:none;cursor:pointer;font-size:15px;color:var(--accent);display:inline-flex;align-items:center;gap:6px}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::after{content:"";width:7px;height:7px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;
+  transform:rotate(45deg) translateY(-3px);transition:transform .25s var(--ease)}
+details.more[open] summary::after{transform:rotate(225deg) translate(-2px,-1px)}
+details.more summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:6px}
+.how{font-size:16px;line-height:1.55;color:var(--muted);margin:18px 0 0;max-width:720px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px}
+.stat{background:var(--panel2);border-radius:18px;padding:22px 20px 20px}
+.stat b{display:block;font-size:clamp(28px,3.2vw,40px);font-weight:700;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
 .stat b small{font-size:.38em;font-weight:600;letter-spacing:0;color:var(--muted);margin-left:4px}
 .stat span{display:block;margin-top:12px;font-size:14px;line-height:1.4;color:var(--muted)}
-.ref-src{margin-top:18px;font-size:13px;color:var(--dim);line-height:1.6}
+.ref-src{margin:16px 0 4px;font-size:13px;color:var(--dim);line-height:1.6}
 .ref-src a{color:var(--muted)}
-.card.wide{margin-top:14px}
 .cols2{display:grid;grid-template-columns:1fr 1fr;column-gap:44px}
-.cta{margin-top:30px;border:none;border-radius:999px;background:var(--accent);color:#fff;font-size:17px;font-weight:500;
-  padding:13px 26px;cursor:pointer;transition:background .25s}
-.cta:hover{background:#0077ed} .cta:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
 
 /* ── 컨트롤 ─────────────────────────────────── */
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:clamp(48px,6vw,72px)}
@@ -143,12 +158,14 @@ kbd{font-family:inherit;border:1px solid rgba(255,255,255,.18);border-radius:5px
   .js-reveal .reveal{opacity:1;transform:none;transition:none}
 }
 
-@media (max-width:900px){.grid{grid-template-columns:1fr 1fr}.presets,.stats{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:900px){.grid{grid-template-columns:1fr 1fr}.presets{grid-template-columns:repeat(3,1fr)}.stats{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:640px){
   :root{--gutter:16px}
   .grid,.cols2{grid-template-columns:1fr}
   .gnav .links{display:none} .badge{margin-left:auto}
-  .chip{min-height:128px;padding:22px 18px 18px;gap:22px}
+  .presets{grid-template-columns:repeat(2,1fr)}
+  .chip{min-height:120px;padding:20px 18px 18px;gap:20px}
+  .scene{padding:26px 20px 14px}
   .card{padding:30px 22px 16px}
   .seg{padding:10px 15px}
 }
@@ -158,7 +175,7 @@ kbd{font-family:inherit;border:1px solid rgba(255,255,255,.18);border-radius:5px
 <nav class="gnav">
   <div class="in">
     <a class="brand" href="#top"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 12h2M6 8v8M10 4v16M14 7v10M18 10v4M22 12h0"/></svg>Deep Noise</a>
-    <div class="links"><a class="l" href="#sound">프리셋</a><a class="l" href="#rain">빗소리 엔진</a><a class="l" href="#design">사운드 디자인</a><a class="l" href="#sleep">슬립 타이머</a></div>
+    <div class="links"><a class="l" href="#sound">프리셋</a><a class="l" href="#design">사운드 디자인</a><a class="l" href="#sleep">슬립 타이머</a></div>
     <div class="badge"><b>WebAssembly</b> · <span id="sr">—</span></div>
   </div>
 </nav>
@@ -190,22 +207,22 @@ kbd{font-family:inherit;border:1px solid rgba(255,255,255,.18);border-radius:5px
   <section class="section" id="sound">
     <div class="reveal">
       <p class="eyebrow">프리셋</p>
-      <h2 class="headline">여덟 가지 분위기.<br>하나의 엔진.</h2>
-      <p class="lede">우주의 저음부터 빗소리, 비행기 객실까지. <strong>탭 한 번으로</strong> 지금 필요한 고요를 고르세요.</p>
+      <h2 class="headline">열 가지 분위기.<br>하나의 엔진.</h2>
+      <p class="lede">깊은 저음과 부드러운 노이즈부터 빗소리, 기차, 벽난로까지. <strong>탭 한 번으로</strong> 지금 필요한 고요를 고르세요.</p>
     </div>
     <div class="presets reveal" id="presets"></div>
-  </section>
-
-  <section class="section" id="rain">
-    <div class="reveal">
-      <p class="eyebrow">빗소리 엔진</p>
-      <h2 class="headline">한 방울씩,<br>확률로 떨어집니다.</h2>
-      <p class="lede">실제 유리창 빗소리를 분석해 <strong>푸아송 과정</strong>으로 다시 그립니다. 방울마다 크기·음높이·위치가 다른 ‘톡’과 ‘툭’, 그 아래 깔리는 잔빗소리와 배경까지.</p>
-      <button class="cta" id="rain-play">레퍼런스 빗소리 듣기</button>
+    <div class="scene" id="scene" hidden aria-live="polite">
+      <div class="scene-head"><span class="ic" id="scene-ic"></span><div><h3 id="scene-title"></h3><p id="scene-desc"></p></div></div>
+      <div id="g-rain" class="cols2 sg" hidden></div>
+      <div id="g-train" class="cols2 sg" hidden></div>
+      <div id="g-fire" class="cols2 sg" hidden></div>
+      <details class="more" id="scene-more">
+        <summary>어떻게 만들었나요</summary>
+        <p class="how" id="scene-how"></p>
+        <div class="stats" id="scene-stats"></div>
+        <p class="ref-src" id="scene-src"></p>
+      </details>
     </div>
-    <div class="stats reveal" id="rain-stats"></div>
-    <p class="ref-src reveal" id="rain-src"></p>
-    <div class="card wide reveal"><h3><small>빗방울</small>떨어지는 방식을<br>직접 고르세요.</h3><div id="g-rain" class="cols2"></div></div>
   </section>
 
   <section class="section" id="design">
@@ -290,126 +307,32 @@ registerProcessor('deep-noise', DeepNoise);
 </script>
 
 <script>
-const WASM_B64 = "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";
+const WASM_B64 = "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";
 
-// ── 빗소리 레퍼런스 ─────────────────────────────────────────
-// 빌드 시 src/rain_profile.json(파이썬 분석 결과)과 src/rain_model.js(매핑)가 들어온다.
-const RAIN_REF = {
-  "source": {
-    "url": "https://www.youtube.com/watch?v=clqYeHdZ1zQ",
-    "id": "clqYeHdZ1zQ",
-    "title": "【7M】Close Your Eyes & Sleep 💤 | Rain Sounds (No Thunder, 8 Hours)",
-    "channel": "Rainy Bedroom",
-    "start_s": 300,
-    "duration_s": 180,
-    "selection": {
-      "score": 0.796,
-      "views": 7766612,
-      "likes": 52417,
-      "comment_count": 1300,
-      "followers": 227000,
-      "comments": {
-        "signal": 0.217,
-        "positive": 17,
-        "negative": 2
-      }
-    }
-  },
-  "analysis": {
-    "file": "rain_ref.wav",
-    "sample_rate": 48000,
-    "duration_s": 180.0,
-    "spectral": {
-      "centroid_hz": {
-        "mean": 2979.4,
-        "median": 2923.5,
-        "p10": 2446.2,
-        "p90": 3574.0
-      },
-      "rolloff85_hz_median": 5437.5,
-      "slope_db_per_oct": -2.67,
-      "cumulative_1pct_hz": 140.6,
-      "band_energy": {
-        "20-60": 0.0016,
-        "60-250": 0.0522,
-        "250-1000": 0.1961,
-        "1000-4000": 0.4762,
-        "4000-8000": 0.205,
-        "8000-16000": 0.0675,
-        "16000-24000": 0.0
-      }
-    },
-    "bed": {
-      "slope_db_per_oct": -3.01,
-      "centroid_hz": 2420.6,
-      "rolloff85_hz": 4921.9,
-      "band_energy": {
-        "20-60": 0.0002,
-        "60-250": 0.1887,
-        "250-1000": 0.2226,
-        "1000-4000": 0.3781,
-        "4000-8000": 0.1542,
-        "8000-16000": 0.0549,
-        "16000-24000": 0.0
-      }
-    },
-    "rms": {
-      "mean": 0.11998,
-      "std": 0.06355,
-      "mean_db": -18.42,
-      "cv": 0.53,
-      "slow_cv": 0.094
-    },
-    "transient": {
-      "percussive_ratio": 0.636,
-      "onset_count": 1236,
-      "onset_rate_hz": 6.87,
-      "detector_dead_time_ms": 32.0,
-      "rate_corrected_hz": 8.8,
-      "ioi_ms_mean": 145.6,
-      "ioi_cv": 0.736,
-      "poisson_ks": 0.209,
-      "poisson_ks_dead_time": 0.082,
-      "ioi_cv_dead_time": 0.943,
-      "centroid_hz": 3872.5,
-      "low_peak_hz": 562.5,
-      "high_low_ratio": 8.689,
-      "band_energy": {
-        "20-60": 0.0029,
-        "60-250": 0.0098,
-        "250-1000": 0.0606,
-        "1000-4000": 0.5495,
-        "4000-8000": 0.3049,
-        "8000-16000": 0.0704,
-        "16000-24000": 0.0005
-      },
-      "decay_ms_median": 64.0
-    }
-  },
-  "fit": {
-    "lpHz": 9243.8,
-    "lpQ": 1.0,
-    "lpSlope": 0,
-    "air": 0.3,
-    "pitch": 0.5,
-    "band_rms_error_db": 1.9,
-    "percussive_ratio": 0.607,
-    "render_rms": 0.0594,
-    "render_peak": 0.525,
-    "pink": 1.0,
-    "brown": 0.0,
-    "deep": 0.237,
-    "dropLevel": 0.454,
-    "pitLevel": 0.162
-  }
-};
-// 레퍼런스 분석(JSON, tools/analyze_rain.py) → 빗소리 엔진 물리 파라미터.
-// build.cjs가 페이지에 인라인하고, tools/render_rain.cjs도 같은 함수를 쓴다.
-// 프로파일이 없으면 기본값, "fit" 블록이 있으면 피팅된 레이어 레벨을 우선한다.
+// ── 장면 레퍼런스 ───────────────────────────────────────────
+// 빌드 시 src/profiles/*.json(파이썬 분석·피팅 결과)과 src/scene_model.js(매핑)가 들어온다.
+const SCENE_REFS = {"rain":{"source":{"url":"https://www.youtube.com/watch?v=clqYeHdZ1zQ","id":"clqYeHdZ1zQ","title":"【7M】Close Your Eyes & Sleep 💤 | Rain Sounds (No Thunder, 8 Hours)","channel":"Rainy Bedroom","start_s":300,"duration_s":180,"selection":{"score":0.796,"views":7766612,"likes":52417,"comment_count":1300,"followers":227000,"comments":{"signal":0.217,"positive":17,"negative":2}}},"analysis":{"file":"rain_ref.wav","sample_rate":48000,"duration_s":180,"spectral":{"centroid_hz":{"mean":2979.4,"median":2923.5,"p10":2446.2,"p90":3574},"rolloff85_hz_median":5437.5,"slope_db_per_oct":-2.67,"cumulative_1pct_hz":140.6,"band_energy":{"20-60":0.0016,"60-250":0.0522,"250-1000":0.1961,"1000-4000":0.4762,"4000-8000":0.205,"8000-16000":0.0675,"16000-24000":0}},"bed":{"slope_db_per_oct":-3.01,"centroid_hz":2420.6,"rolloff85_hz":4921.9,"band_energy":{"20-60":0.0002,"60-250":0.1887,"250-1000":0.2226,"1000-4000":0.3781,"4000-8000":0.1542,"8000-16000":0.0549,"16000-24000":0}},"rms":{"mean":0.11998,"std":0.06355,"mean_db":-18.42,"cv":0.53,"slow_cv":0.094,"fast_cv":0.073},"periodicity":{"period_s":0.491,"strength":0.088},"stereo_corr":0.32,"transient":{"percussive_ratio":0.636,"onset_count":1236,"onset_rate_hz":6.87,"detector_dead_time_ms":32,"rate_corrected_hz":8.8,"ioi_ms_mean":145.6,"ioi_cv":0.736,"poisson_ks":0.209,"poisson_ks_dead_time":0.082,"ioi_cv_dead_time":0.943,"centroid_hz":3872.5,"low_peak_hz":562.5,"sub_peak_hz":70.3,"high_low_ratio":8.689,"band_energy":{"20-60":0.0029,"60-250":0.0098,"250-1000":0.0606,"1000-4000":0.5495,"4000-8000":0.3049,"8000-16000":0.0704,"16000-24000":0.0005},"decay_ms_median":64}},"fit":{"lpHz":9243.8,"lpQ":1,"lpSlope":0,"air":0.3,"pitch":0.5,"subHz":35,"band_rms_error_db":1.82,"percussive_ratio":0.59,"render_rms":0.0656,"render_peak":0.477,"pink":1,"brown":0,"deep":0.371,"dropLevel":0.587,"pitLevel":0.175}},"train":{"source":{"url":"https://www.youtube.com/watch?v=pyyJQD91qMU","id":"pyyJQD91qMU","title":"Train Sounds for Sleep & Relaxation | 10 Hour Luxury Train Ride","channel":"Relaxing White Noise","start_s":300,"duration_s":180,"selection":{"rank":1,"score":0.882,"views":2050323,"likes":18716,"comment_count":402,"followers":4530000,"comments":{"signal":0.45,"positive":27,"negative":0}}},"analysis":{"file":"train_ref.wav","sample_rate":48000,"duration_s":180,"spectral":{"centroid_hz":{"mean":81.6,"median":75.1,"p10":36.2,"p90":135},"rolloff85_hz_median":117.2,"slope_db_per_oct":-13.31,"cumulative_1pct_hz":23.4,"band_energy":{"20-60":0.393,"60-250":0.2842,"250-1000":0.0456,"1000-4000":0.0023,"4000-8000":0,"8000-16000":0,"16000-24000":0}},"bed":{"slope_db_per_oct":-13.27,"centroid_hz":29.8,"rolloff85_hz":70.3,"band_energy":{"20-60":0.4998,"60-250":0.1354,"250-1000":0.0035,"1000-4000":0.0003,"4000-8000":0,"8000-16000":0,"16000-24000":0}},"rms":{"mean":13.6006,"std":10.54421,"mean_db":22.67,"cv":0.775,"slow_cv":0.191,"fast_cv":0.252},"periodicity":{"period_s":2.4,"strength":0.145},"stereo_corr":0.575,"transient":{"percussive_ratio":0.038,"onset_count":2629,"onset_rate_hz":14.61,"detector_dead_time_ms":32,"rate_corrected_hz":27.42,"ioi_ms_mean":68.5,"ioi_cv":0.508,"poisson_ks":0.373,"poisson_ks_dead_time":0.183,"ioi_cv_dead_time":0.955,"centroid_hz":226.8,"low_peak_hz":328.1,"sub_peak_hz":164.1,"high_low_ratio":0.002,"band_energy":{"20-60":0.0214,"60-250":0.6437,"250-1000":0.3128,"1000-4000":0.0034,"4000-8000":0,"8000-16000":0,"16000-24000":0},"decay_ms_median":74.7}},"fit":{"lpHz":937.6,"lpQ":0.707,"lpSlope":0,"air":0.3,"pitch":1,"subHz":100,"band_rms_error_db":1.7,"percussive_ratio":0.075,"render_rms":0.1059,"render_peak":0.512,"pink":0.51,"brown":0,"deep":0.525,"clackLevel":1}},"fire":{"source":{"url":"https://www.youtube.com/watch?v=1MGlTgSnsE4","id":"1MGlTgSnsE4","title":"Fireplace (24 HOURS) 🔥 Burning Fireplace & Crackling Fire Sounds (NO Music)","channel":"Relaxing Fire Sound","start_s":300,"duration_s":180,"selection":{"rank":2,"score":0.533,"views":3130497,"likes":26015,"comment_count":480,"followers":46800,"comments":{"signal":0.283,"positive":27,"negative":5}}},"analysis":{"file":"fire_ref.wav","sample_rate":48000,"duration_s":180,"spectral":{"centroid_hz":{"mean":307.3,"median":125.3,"p10":49.2,"p90":681.6},"rolloff85_hz_median":70.3,"slope_db_per_oct":-1.45,"cumulative_1pct_hz":23.4,"band_energy":{"20-60":0.4964,"60-250":0.2093,"250-1000":0.0057,"1000-4000":0.0106,"4000-8000":0.0126,"8000-16000":0.0089,"16000-24000":0}},"bed":{"slope_db_per_oct":-1.66,"centroid_hz":35.1,"rolloff85_hz":70.3,"band_energy":{"20-60":0.5547,"60-250":0.1671,"250-1000":0.0002,"1000-4000":0.0001,"4000-8000":0.0002,"8000-16000":0.0002,"16000-24000":0}},"rms":{"mean":0.8731,"std":0.7082,"mean_db":-1.18,"cv":0.811,"slow_cv":0.049,"fast_cv":0.203},"periodicity":{"period_s":0.811,"strength":0.101},"stereo_corr":0.908,"transient":{"percussive_ratio":0.028,"onset_count":1844,"onset_rate_hz":10.24,"detector_dead_time_ms":32,"rate_corrected_hz":15.24,"ioi_ms_mean":97.6,"ioi_cv":0.541,"poisson_ks":0.287,"poisson_ks_dead_time":0.124,"ioi_cv_dead_time":0.805,"centroid_hz":4750.6,"low_peak_hz":1406.2,"sub_peak_hz":164.1,"high_low_ratio":3.954,"band_energy":{"20-60":0.0008,"60-250":0.0443,"250-1000":0.114,"1000-4000":0.3244,"4000-8000":0.3217,"8000-16000":0.194,"16000-24000":0.0001},"decay_ms_median":53.3}},"fit":{"lpHz":8500,"lpQ":1.4,"lpSlope":0,"air":0,"pitch":1,"subHz":100,"band_rms_error_db":1.61,"percussive_ratio":0.013,"render_rms":0.12,"render_peak":0.577,"white":0.362,"pink":0,"brown":0.215,"deep":0.956,"crackleLevel":0.353}}} || {};
+// 레퍼런스 분석(JSON, tools/analyze_reference.py) → 장면(빗소리·기차·벽난로) 엔진 물리 파라미터.
+// build.cjs가 페이지에 인라인하고, tools/render_scene.cjs·fit_reference.py도 같은 함수를 쓴다.
+// 프로파일이 없으면 기본값, "fit" 블록이 있으면 피팅된 레이어 레벨·톤을 우선한다.
+const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+
+// 세 장면이 공유하는 배경(베드)·톤 파라미터: 하이패스, 스웰, 스테레오 폭, 그리고 피팅 결과
+function bedFromProfile(a, f, d) {
+  const sp = a.spectral;
+  const m = {
+    hpHz:  sp.cumulative_1pct_hz >= 25 ? clamp(sp.cumulative_1pct_hz, 25, 400) : 0,   // 누적 에너지 1% 지점
+    swell: clamp(a.rms.slow_cv * 2, 0, .6),                                          // 느린 세기 변동 → 파도 스웰
+    // 배경 노이즈의 L/R 상관이 1 − 폭이 되도록(폭 1 = 완전 독립)
+    width: a.stereo_corr != null ? clamp(1 - a.stereo_corr, .1, 1) : d.width,
+  };
+  if (f) for (const k of ['white', 'pink', 'brown', 'deep', 'subHz', 'lpHz', 'lpQ', 'lpSlope', 'air']) if (f[k] != null) m[k] = f[k];
+  return m;
+}
+
 function rainFromProfile(ref) {
-  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
   const d = { rate:18, tokHz:2600, tukHz:700, pTok:.5, decayMs:12, pitMul:6, pitLevel:.25, dropLevel:.8,
-              pink:.25, brown:.5, lpHz:6000, lpSlope:1, air:0, hpHz:0, deep:.15, subHz:45, swell:.1, width:1 };
+              white:0, pink:.25, brown:.5, lpHz:6000, lpQ:.707, lpSlope:1, air:0, hpHz:0, deep:.15, subHz:45, swell:.1, width:1 };
   const a = ref && ref.analysis;
   if (!a) return d;
   const t = a.transient, sp = a.spectral, be = sp.band_energy;
@@ -419,8 +342,9 @@ function rainFromProfile(ref) {
   const brownFrac = clamp((-sp.slope_db_per_oct - 3) / 3, 0, 1);
   const bed = clamp(1.6 * (1 - perc), .3, 1);
   const hl = t.high_low_ratio;
-  const f = ref.fit;   // tools/fit_rain.py의 NNLS 피팅 결과가 있으면 레벨·컷오프는 그 값을 쓴다
+  const f = ref.fit;   // tools/fit_reference.py의 NNLS 피팅 결과
   const m = {
+    ...d,
     rate:     clamp(t.rate_corrected_hz ?? t.onset_rate_hz, 2, 150),   // 불감 시간 보정된 푸아송 λ
     tokHz:    clamp(t.centroid_hz, 1200, 8000),                         // 타격 순간 스펙트럼 중심
     tukHz:    clamp(t.low_peak_hz, 200, 1500),                          // 타격 순간 300–1500 Hz 피크
@@ -432,23 +356,96 @@ function rainFromProfile(ref) {
     pink:     bed * (1 - brownFrac),
     brown:    bed * brownFrac,
     lpHz:     clamp(sp.rolloff85_hz_median * 1.3, 1500, 20000),
-    lpQ:      .707,
-    air:      0,                                                        // 2.5 kHz 위 셸프 (fit에서 정함)
-    lpSlope:  1,                                                        // 24 dB/oct: 레퍼런스의 가파른 고역 감쇠
-    hpHz:     sp.cumulative_1pct_hz >= 25 ? clamp(sp.cumulative_1pct_hz, 25, 400) : 0,
     deep:     clamp(be['20-60'] * 4, 0, .6),
-    subHz:    45,
-    swell:    clamp(a.rms.slow_cv * 2, 0, .6),                          // 느린 세기 변동 → 파도 스웰
-    width:    1,
+    ...bedFromProfile(a, f, d),
   };
-  if (f) for (const k of ['pink', 'brown', 'deep', 'dropLevel', 'pitLevel', 'lpHz', 'lpQ', 'lpSlope', 'air']) if (f[k] != null) m[k] = f[k];
+  if (f) for (const k of ['dropLevel', 'pitLevel']) if (f[k] != null) m[k] = f[k];
   // 피팅된 음높이 배수: 타격 순간 스펙트럼 중심 → 공진 피크로 옮긴다(슬라이더 '빗방울 음높이'는 그 위에서 가운데)
   if (f && f.pitch) { m.tokHz *= f.pitch; m.tukHz *= f.pitch; }
   return m;
 }
-if (typeof module !== 'undefined') module.exports = { rainFromProfile };
 
-const RAIN = rainFromProfile(RAIN_REF);
+// 기차: 객실 안의 낮은 주행음(베드) + 레일 이음매를 지나는 '덜컹' 주기 패턴
+function trainFromProfile(ref) {
+  const d = { period:1.2, thumpHz:110, knockHz:400, clackLevel:.4,
+              white:0, pink:.1, brown:.8, deep:.5, subHz:40, lpHz:900, lpQ:.707, lpSlope:1, air:0, hpHz:25, swell:.15, width:.4 };
+  const a = ref && ref.analysis;
+  if (!a) return d;
+  const t = a.transient, pr = a.periodicity, f = ref.fit;
+  const m = {
+    ...d,
+    // 100–1000 Hz 세기 엔벨로프의 자기상관 피크가 충분히 또렷할 때만 이음매 주기로 쓴다
+    period:  pr && pr.strength >= .12 ? clamp(pr.period_s, .4, 3) : d.period,
+    thumpHz: clamp(t.sub_peak_hz ?? d.thumpHz, 50, 300),     // 타격 순간 40–300 Hz 피크: 차체로 전해지는 '쿵'
+    knockHz: clamp(t.low_peak_hz ?? d.knockHz, 250, 3000),    // 타격 순간 300–1500 Hz 피크: 바퀴–레일의 '덩'
+    ...bedFromProfile(a, f, d),
+  };
+  if (f && f.clackLevel != null) m.clackLevel = f.clackLevel;
+  return m;
+}
+
+// 벽난로: 불꽃의 낮은 울림(베드, 일렁임 AM) + 군집 푸아송 '타닥'과 드문 '펑'
+function fireFromProfile(ref) {
+  const d = { clusterRate:3, clusterSize:2.5, crackleHz:3500, popHz:700, popRatio:.12, flicker:.5, crackleLevel:.4,
+              white:.05, pink:.3, brown:.6, deep:.3, subHz:45, lpHz:8000, lpQ:.707, lpSlope:0, air:0, hpHz:25, swell:.05, width:.3 };
+  const a = ref && ref.analysis;
+  if (!a) return d;
+  const t = a.transient, f = ref.fit;
+  // 온셋 검출기(불감 시간 ≈30 ms)는 군집 안의 타닥을 대부분 따로 잡으므로 보정 온셋 빈도 ≈ 타닥 빈도.
+  // 간격 CV가 1보다 크면 군집이 뚜렷하다 → 군집당 타닥 수를 늘리고 군집 빈도는 그만큼 줄인다.
+  const size = clamp(1 + 4 * ((t.ioi_cv_dead_time ?? 1) - .9), 1.2, 5);
+  const hl = t.high_low_ratio ?? 4;
+  const m = {
+    ...d,
+    clusterSize: size,
+    clusterRate: clamp((t.rate_corrected_hz ?? 9) / size, .3, 30),
+    crackleHz:   clamp(t.centroid_hz ?? d.crackleHz, 1500, 8000),   // 타격 순간 스펙트럼 중심
+    popHz:       clamp(t.low_peak_hz ?? d.popHz, 300, 1500),        // 타격 순간 300–1500 Hz 피크
+    popRatio:    clamp(1 / (1 + hl), .05, .5),                      // 저역/고역 타격 에너지 비
+    // 배경 세기의 짧은 변동(2초 창 CV). 비처럼 고른 배경이 ≈0.07이라 그 위만 일렁임으로 본다
+    flicker:     clamp(((a.rms.fast_cv ?? .2) - .07) * 4, 0, 1),
+    ...bedFromProfile(a, f, d),
+  };
+  if (f && f.crackleLevel != null) m.crackleLevel = f.crackleLevel;
+  return m;
+}
+
+const SCENE_MODELS = { rain: rainFromProfile, train: trainFromProfile, fire: fireFromProfile };
+
+// 엔진 파라미터 바인딩 {id: 값} — 해당 장면만 켜고 다른 장면의 사건 레이어는 끈다.
+// 볼륨(0)·게이트(18)·페이드(19, 20)·스웰 속도(11)는 호출하는 쪽이 정한다.
+function sceneBinding(scene, m) {
+  const p = {
+    1: m.white || 0, 2: m.pink || 0, 3: m.brown || 0, 4: m.deep || 0, 5: m.subHz, 6: 0, 7: m.lpHz, 8: m.air || 0,
+    9: m.width, 10: m.swell, 14: 0, 15: m.lpQ || .707, 16: m.hpHz, 17: .707, 28: m.lpSlope ?? 1,
+    12: 0, 25: 0, 29: 0, 34: 0, 39: 0, 27: 1, 33: 1,
+  };
+  if (scene === 'rain') Object.assign(p, { 12: m.dropLevel, 13: m.rate, 21: m.tokHz, 22: m.tukHz, 23: m.pTok,
+    24: m.decayMs, 25: m.pitLevel, 26: m.pitMul });
+  if (scene === 'train') Object.assign(p, { 29: m.clackLevel, 30: m.period, 31: m.thumpHz, 32: m.knockHz });
+  if (scene === 'fire') Object.assign(p, { 34: m.crackleLevel, 35: m.clusterRate, 36: m.clusterSize, 37: m.crackleHz,
+    38: m.popRatio, 39: m.flicker, 40: m.popHz });
+  return p;
+}
+if (typeof module !== 'undefined') module.exports = { rainFromProfile, trainFromProfile, fireFromProfile, SCENE_MODELS, sceneBinding };
+
+const RAIN = rainFromProfile(SCENE_REFS.rain), TRAIN = trainFromProfile(SCENE_REFS.train), FIRE = fireFromProfile(SCENE_REFS.fire);
+
+// ── 아이콘 (Lucide, ISC 라이선스 — https://lucide.dev) ─────────
+const ICONS = {
+  orbit: '<path d="M20.341 6.484A10 10 0 0 1 10.266 21.85"/><path d="M3.659 17.516A10 10 0 0 1 13.74 2.152"/><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/>',
+  wave: '<path d="M2 13a2 2 0 0 0 2-2V7a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0V4a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0v-4a2 2 0 0 1 2-2"/>',
+  flower: '<path d="M12 5a3 3 0 1 1 3 3m-3-3a3 3 0 1 0-3 3m3-3v1M9 8a3 3 0 1 0 3 3M9 8h1m5 0a3 3 0 1 1-3 3m3-3h-1m-2 3v-1"/><circle cx="12" cy="8" r="2"/><path d="M12 10v12"/><path d="M12 22c4.2 0 7-1.667 7-5-4.2 0-7 1.667-7 5Z"/><path d="M12 22c-4.2 0-7-1.667-7-5 4.2 0 7 1.667 7 5Z"/>',
+  mountain: '<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>',
+  waves: '<path d="M2 12q2.5 2 5 0t5 0 5 0 5 0"/><path d="M2 19q2.5 2 5 0t5 0 5 0 5 0"/><path d="M2 5q2.5 2 5 0t5 0 5 0 5 0"/>',
+  rain: '<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6"/><path d="M8 14v6"/><path d="M12 16v6"/>',
+  train: '<path d="M8 3.1V7a4 4 0 0 0 8 0V3.1"/><path d="m9 15-1-1"/><path d="m15 15 1-1"/><path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z"/><path d="m8 19-2 3"/><path d="m16 19 2 3"/>',
+  flame: '<path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"/>',
+  plane: '<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>',
+  headphones: '<path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/>',
+};
+// 아이콘 타일: [아이콘, 그라데이션 시작, 끝]
+const tile = (icon, a, b) => `<span class="ic" style="--g:linear-gradient(145deg,${a},${b});--sh:${b}" aria-hidden="true"><svg viewBox="0 0 24 24">${ICONS[icon]}</svg></span>`;
 
 // ── 파라미터 정의 ────────────────────────────────────────────
 // id: 엔진 파라미터 번호, map: UI값(0..1) → 엔진값, keep: 프리셋을 바꿔도 유지
@@ -468,7 +465,19 @@ const CONTROLS = [
   { key:'dens',  g:'rain', label:'빗방울 빈도 (푸아송 λ)', id:13, color:'#6fd3e8', map:v=>RAIN.rate*Math.pow(2,(v-.5)*4), fmt:v=>(RAIN.rate*Math.pow(2,(v-.5)*4)).toFixed(1)+' /초' },
   { key:'pit',   g:'rain', label:'잔빗소리', id:25, color:'#9fe3f0', fmt:pct },
   { key:'tok',   g:'rain', label:'톡 ↔ 툭 비율', id:23, color:'#c9b8ff', fmt:v=>'톡 '+Math.round(v*100)+'%' },
-  { key:'pitch', g:'rain', label:'빗방울 음높이', id:27, color:'#c9b8ff', map:v=>Math.pow(2,(v-.5)*2), fmt:v=>{const st=Math.round((v-.5)*24);return (st>0?'+':'')+st+' 반음'} },
+  { key:'pitch', g:'rain', label:'빗방울 음높이', id:27, color:'#c9b8ff', map:v=>Math.pow(2,(v-.5)*2), fmt:semi },
+
+  { key:'clack', g:'train', label:'레일 덜컹', id:29, color:'#9fb4ff', fmt:pct },
+  // 주행 속도: 가운데 = 레퍼런스. 25 m 레일 기준 이음매 주기 → 시속
+  { key:'speed', g:'train', label:'주행 속도', id:30, color:'#9fb4ff', map:v=>TRAIN.period/Math.pow(2,(v-.5)*2),
+    fmt:v=>'시속 '+Math.round(25/(TRAIN.period/Math.pow(2,(v-.5)*2))*3.6)+' km' },
+  { key:'clackPitch', g:'train', label:'덜컹 음높이', id:33, color:'#c9b8ff', map:v=>Math.pow(2,(v-.5)*2), fmt:semi },
+
+  { key:'crackle', g:'fire', label:'장작 타닥', id:34, color:'#ffb38a', fmt:pct },
+  { key:'crRate', g:'fire', label:'타닥 빈도', id:35, color:'#ffb38a', map:v=>FIRE.clusterRate*Math.pow(2,(v-.5)*3),
+    fmt:v=>(FIRE.clusterRate*FIRE.clusterSize*Math.pow(2,(v-.5)*3)).toFixed(1)+' /초' },
+  { key:'pop', g:'fire', label:'‘펑’ 비율', id:38, color:'#ff9f7a', map:v=>v*.6, fmt:v=>Math.round(v*60)+'%' },
+  { key:'flicker', g:'fire', label:'불꽃 일렁임', id:39, color:'#ffd27a', fmt:pct },
 
   { key:'tone',  g:'filter', label:'로우패스 컷오프', id:7, color:'#b48cff', map:logMap(120,20000), fmt:v=>hz(logMap(120,20000)(v)) },
   { key:'lpq',   g:'filter', label:'로우패스 Q (공진)', id:15, color:'#b48cff', map:Q, fmt:v=>Q(v).toFixed(2) },
@@ -488,29 +497,90 @@ const CONTROLS = [
   { key:'fout',  g:'move', label:'페이드 아웃', id:20, color:'#e8ecff', map:FADE, fmt:v=>sec(FADE(v)), keep:true },
 ];
 function pct(v){ return Math.round(v*100)+'%'; }
+function semi(v){ const st = Math.round((v-.5)*24); return (st>0?'+':'')+st+' 반음'; }
 const mapOf = c => c.map || (x => x);
 
 const BASE = { white:0, pink:0, brown:0, deep:0, rain:0, subf:.4, bass:0, tone:1, air:0, warm:0, width:.6, swell:0, rate:.4, dens:.5,
   pit:0, tok:RAIN.pTok, pitch:.5, lps:0,
+  clack:0, speed:.5, clackPitch:.5, crackle:0, crRate:.5, pop:FIRE.popRatio/.6, flicker:0,
   lpq:logInv(.5,10,.707), hpf:0, hpq:logInv(.5,10,.707), fin:logInv(.05,10,1.5), fout:logInv(.05,10,.8) };
-// 레퍼런스 분석 → 슬라이더 값 (빗소리 프리셋)
-function rainPreset() {
-  const r = RAIN;
-  return { pink:r.pink, brown:r.brown, deep:r.deep, subf:logInv(25,120,r.subHz),
-    tone:logInv(120,20000,r.lpHz), lpq:logInv(.5,10,r.lpQ), lps:r.lpSlope, hpf:r.hpHz ? logInv(10,2000,r.hpHz) : 0,
-    air:r.air > 0 ? r.air / 1.5 : r.air / .95,
-    rain:r.dropLevel, pit:r.pitLevel, tok:r.pTok, dens:.5, pitch:.5, swell:r.swell, rate:.4, width:r.width };
+// 레퍼런스 분석 → 슬라이더 값 (장면 프리셋). 배경·톤은 세 장면 공통.
+function bedPreset(m) {
+  return { white:m.white || 0, pink:m.pink, brown:m.brown, deep:m.deep, subf:logInv(25,120,m.subHz),
+    tone:logInv(120,20000,m.lpHz), lpq:logInv(.5,10,m.lpQ || .707), lps:m.lpSlope ?? 1, hpf:m.hpHz ? logInv(10,2000,m.hpHz) : 0,
+    air:m.air > 0 ? m.air / 1.5 : (m.air || 0) / .95, swell:m.swell, rate:.4, width:m.width };
 }
+const rainPreset  = () => ({ ...bedPreset(RAIN), rain:RAIN.dropLevel, pit:RAIN.pitLevel, tok:RAIN.pTok, dens:.5, pitch:.5 });
+const trainPreset = () => ({ ...bedPreset(TRAIN), clack:TRAIN.clackLevel, speed:.5, clackPitch:.5 });
+const firePreset  = () => ({ ...bedPreset(FIRE), crackle:FIRE.crackleLevel, crRate:.5, pop:FIRE.popRatio / .6, flicker:FIRE.flicker });
 const PRESETS = [
-  { name:'깊은 우주', icon:'🌌', v:{ brown:.55, deep:.9, subf:.25, bass:.55, tone:.45, warm:.45, width:.85, swell:.3, rate:.15 } },
-  { name:'화이트',   icon:'⚪', v:{ white:.9, tone:1, width:.6 } },
-  { name:'핑크',     icon:'🌸', v:{ pink:.95, tone:1, width:.6 } },
-  { name:'브라운',   icon:'🟤', v:{ brown:.95, bass:.25, tone:.85, width:.6 } },
-  { name:'바다 파도', icon:'🌊', v:{ pink:.45, brown:.7, deep:.35, subf:.35, tone:.8, swell:.9, rate:.4, width:1, warm:.2 } },
-  { name:'빗소리',   icon:'🌧️', v:rainPreset() },
-  { name:'비행기 객실', icon:'✈️', v:{ brown:.85, deep:.6, subf:.65, bass:.45, tone:.4, warm:.3, width:.35, hpf:.22 } },
-  { name:'집중',     icon:'🎧', v:{ pink:.6, brown:.45, tone:.72, air:-.25, width:.7, hpf:.45 } },
+  { name:'깊은 우주', icon:tile('orbit','#6d7cff','#3a2a9e'), v:{ brown:.55, deep:.9, subf:.25, bass:.55, tone:.45, warm:.45, width:.85, swell:.3, rate:.15 } },
+  { name:'화이트',   icon:tile('wave','#c9ced8','#6b7280'), v:{ white:.9, tone:1, width:.6 } },
+  { name:'핑크',     icon:tile('flower','#ff9ccf','#c2448a'), v:{ pink:.95, tone:1, width:.6 } },
+  { name:'브라운',   icon:tile('mountain','#d6a26f','#7a4a24'), v:{ brown:.95, bass:.25, tone:.85, width:.6 } },
+  { name:'바다 파도', icon:tile('waves','#5fd4e6','#1f6fb8'), v:{ pink:.45, brown:.7, deep:.35, subf:.35, tone:.8, swell:.9, rate:.4, width:1, warm:.2 } },
+  { name:'빗소리',   icon:tile('rain','#7cc4ff','#2f5fd0'), scene:'rain', v:rainPreset() },
+  { name:'기차',     icon:tile('train','#9aa7ff','#3b3f8f'), scene:'train', v:trainPreset() },
+  { name:'벽난로',   icon:tile('flame','#ffb86b','#d9452b'), scene:'fire', v:firePreset() },
+  { name:'비행기 객실', icon:tile('plane','#9fb7d6','#3f5878'), v:{ brown:.85, deep:.6, subf:.65, bass:.45, tone:.4, warm:.3, width:.35, hpf:.22 } },
+  { name:'집중',     icon:tile('headphones','#7fe0b0','#1f8a6a'), v:{ pink:.6, brown:.45, tone:.72, air:-.25, width:.7, hpf:.45 } },
 ];
+
+// ── 장면 패널: 빗소리·기차·벽난로의 조절과 '어떻게 만들었나요' 세부 ──
+const kHz = x => (x / 1000).toFixed(2);
+const SCENES = {
+  rain: { name:'빗소리', icon:tile('rain','#7cc4ff','#2f5fd0'), keys:['rain','pit'], desc:'유리창과 잎에 떨어지는 빗방울',
+    how:'실제 유리창 빗소리를 분석해 <b>푸아송 과정</b>으로 다시 그립니다. 방울마다 크기·음높이·위치가 다른 ‘톡’과 ‘툭’, 그 아래 깔리는 잔빗소리까지 — 녹음을 반복 재생하지 않아 같은 순간이 두 번 오지 않습니다.',
+    tiles:a => [[RAIN.rate.toFixed(1), '/초', '빗방울 빈도 λ<br>검출기 불감 시간 보정'],
+      [kHz(RAIN.tokHz), 'kHz', '‘톡’ 공진 중심<br>타격 스펙트럼 × 피팅 배수'],
+      [Math.round(RAIN.tukHz), 'Hz', '‘툭’ 공진 중심<br>타격 저역 피크 × 피팅 배수'],
+      [a.transient.ioi_cv_dead_time.toFixed(2), 'CV', '방울 간격 변동계수<br>푸아송 과정이면 1']] },
+  train: { name:'기차', icon:tile('train','#9aa7ff','#3b3f8f'), keys:['clack'], desc:'객실 안, 레일 위를 달리는 밤기차',
+    how:'객실 안 주행음을 분석해, 레일 이음매를 지날 때마다 대차 두 개·차축 네 개가 차례로 내는 <b>‘덜컹 … 덜컹’ 리듬</b>과 낮은 주행 울림으로 다시 그립니다. 이음매 주기는 소리 세기의 자기상관에서 찾습니다.',
+    tiles:a => [[TRAIN.period.toFixed(2), '초', `레일 이음매 주기<br>25 m 레일 → 시속 ${Math.round(25 / TRAIN.period * 3.6)} km`],
+      [Math.round(TRAIN.thumpHz), 'Hz', '‘쿵’ 차체 충격 중심<br>타격 40–300 Hz 피크'],
+      [Math.round(TRAIN.knockHz), 'Hz', '‘덩’ 바퀴–레일 중심<br>타격 300–1500 Hz 피크'],
+      [a.periodicity.strength.toFixed(2), 'r', '주기성 세기<br>100–1000 Hz 엔벨로프 자기상관']] },
+  fire: { name:'벽난로', icon:tile('flame','#ffb86b','#d9452b'), keys:['crackle'], desc:'타닥타닥, 장작이 타는 저녁',
+    how:'장작 타는 소리를 분석해, 몇 개씩 몰려 터지는 <b>‘타닥’(군집 푸아송 과정)</b>과 가끔 굵게 터지는 ‘펑’, 수 Hz로 일렁이는 불꽃의 울림으로 다시 그립니다.',
+    tiles:a => [[(FIRE.clusterRate * FIRE.clusterSize).toFixed(1), '/초', '타닥 빈도<br>검출기 불감 시간 보정'],
+      [kHz(FIRE.crackleHz), 'kHz', '타닥 공진 중심<br>타격 스펙트럼 중심'],
+      [Math.round(FIRE.popHz), 'Hz', '‘펑’ 공진 중심<br>타격 300–1500 Hz 피크'],
+      [Math.round(FIRE.flicker * 100), '%', '불꽃 일렁임<br>배경 세기의 짧은 변동']] },
+};
+// 지금 켜진 장면: 마지막으로 고른 장면 프리셋이 아직 들리면 그것, 아니면 사건 레이어가 켜진 첫 장면
+function activeScene() {
+  const on = k => SCENES[k].keys.some(x => state.v[x] > .02);
+  if (state.scene && SCENES[state.scene] && on(state.scene)) return state.scene;
+  return Object.keys(SCENES).find(on) || null;
+}
+let shownScene;
+function renderScene() {
+  const k = activeScene(), box = $('scene');
+  box.hidden = !k;
+  if (!k || k === shownScene) return;
+  shownScene = k;
+  const sc = SCENES[k], ref = SCENE_REFS[k];
+  $('scene-ic').outerHTML = sc.icon.replace('class="ic"', 'class="ic" id="scene-ic"');
+  $('scene-title').textContent = sc.name; $('scene-desc').textContent = sc.desc;
+  for (const g of box.querySelectorAll('.sg')) g.hidden = g.id !== 'g-' + k;
+  $('scene-how').innerHTML = sc.how;
+  const a = ref && ref.analysis, stats = $('scene-stats'), src = $('scene-src');
+  stats.innerHTML = a ? sc.tiles(a).map(([v, u, d]) => `<div class="stat"><b>${v}<small>${u}</small></b><span>${d}</span></div>`).join('') : '';
+  src.textContent = '';
+  if (!a) { src.textContent = '레퍼런스 프로파일 없이 기본값으로 동작 중입니다.'; return; }
+  const s = ref.source, f = ref.fit, n = x => Number(x).toLocaleString('ko-KR');
+  if (s) {
+    src.append('레퍼런스: ');
+    const link = document.createElement('a'); link.href = s.url; link.target = '_blank'; link.rel = 'noopener';
+    link.textContent = s.title; src.append(link, ` · ${s.channel} · ${s.start_s}초부터 ${s.duration_s}초 분석`);
+    const q = s.selection;
+    if (q) src.append(document.createElement('br'),
+      `품질 선정: 조회수 ${n(q.views)} · 좋아요 ${n(q.likes)} (${(q.likes / q.views * 100).toFixed(2)}%) · 댓글 ${n(q.comment_count)} · 구독자 ${n(q.followers)}` +
+      (q.comments ? ` · 인기 댓글 긍정 ${q.comments.positive} / 불만 ${q.comments.negative}` : ''));
+  }
+  if (f) src.append(document.createElement('br'), `엔진 렌더 검증: 1/3옥타브 대역 오차 ${f.band_rms_error_db} dB · 타격 성분 ${Math.round(f.percussive_ratio * 100)}% (레퍼런스 ${Math.round(a.transient.percussive_ratio * 100)}%)`);
+}
 const TYPES = [['white','White'],['pink','Pink'],['brown','Brown']];
 
 // ── 상태 ───────────────────────────────────────────────────
@@ -526,8 +596,10 @@ let playing = false, engineActive = false, raf = 0;
 const masterOf = v => 1.5 * v * v;
 function engineParams() {
   const p = [P_MASTER, masterOf(state.vol), P_GATE, 0,
-    // 레퍼런스에서 정해지는 고정 파라미터: 톡·툭 중심, 임펄스 감쇠, 잔빗소리 빈도 배수
-    21, RAIN.tokHz, 22, RAIN.tukHz, 24, RAIN.decayMs, 26, RAIN.pitMul];
+    // 레퍼런스에서 정해지는 고정 파라미터
+    21, RAIN.tokHz, 22, RAIN.tukHz, 24, RAIN.decayMs, 26, RAIN.pitMul,      // 빗소리: 톡·툭 중심, 임펄스 감쇠, 잔빗소리 빈도 배수
+    31, TRAIN.thumpHz, 32, TRAIN.knockHz,                                   // 기차: 쿵·덩 중심
+    36, FIRE.clusterSize, 37, FIRE.crackleHz, 40, FIRE.popHz];              // 벽난로: 군집 크기, 타닥·펑 중심
   for (const c of CONTROLS) p.push(c.id, mapOf(c)(state.v[c.key]));
   return p;
 }
@@ -586,14 +658,15 @@ vol.addEventListener('input', () => { state.vol = +vol.value; paint(vol); setPar
 const presetBox = $('presets');
 for (const p of PRESETS) {
   const b = document.createElement('button'); b.className = 'chip'; b.dataset.name = p.name;
-  b.innerHTML = `<span>${p.icon}</span>${p.name}`;
+  b.innerHTML = `${p.icon}${p.name}`;
   b.onclick = () => applyPreset(p);
   presetBox.appendChild(b);
 }
 function applyPreset(p) {
   const next = { ...BASE, ...p.v };
   for (const c of CONTROLS) setCtl(c.key, c.keep ? state.v[c.key] : next[c.key]);
-  state.preset = p.name; renderPreset(); save();
+  state.preset = p.name; if (p.scene) state.scene = p.scene;
+  renderPreset(); save();
 }
 
 // 노이즈 타입 전환: 현재 레벨을 유지한 채 White/Pink/Brown 중 하나로 교체.
@@ -613,7 +686,8 @@ function renderPreset() {
   for (const b of presetBox.children) b.classList.toggle('on', b.dataset.name === state.preset);
   $('pname').textContent = state.preset || '사용자 설정';
   const v = state.v, m = [];
-  const layers = [['White',v.white],['Pink',v.pink],['Brown',v.brown],['Deep',v.deep],['Rain',v.rain]].filter(x=>x[1]>.02);
+  const layers = [['White',v.white],['Pink',v.pink],['Brown',v.brown],['Deep',v.deep],['Rain',Math.max(v.rain,v.pit)],
+    ['Train',v.clack],['Fire',v.crackle]].filter(x=>x[1]>.02);
   m.push(layers.length ? layers.map(x=>x[0]).join(' + ') : '무음');
   if (v.deep > .02) m.push('서브 ' + Math.round(logMap(25,120)(v.subf)) + ' Hz');
   if (v.hpf >= .005) m.push('HPF ' + hz(logMap(10,2000)(v.hpf)));
@@ -624,35 +698,9 @@ function renderPreset() {
     const sel = on.length === 1 && on[0][0] === b.dataset.key;
     b.classList.toggle('on', sel); b.setAttribute('aria-pressed', sel);
   }
+  renderScene();
 }
 renderPreset();
-
-// 빗소리 섹션: 레퍼런스 분석 수치
-(function renderRain() {
-  const a = RAIN_REF && RAIN_REF.analysis, box = $('rain-stats');
-  if (!a) { box.style.display = 'none'; $('rain-src').textContent = '레퍼런스 프로파일 없이 기본값으로 동작 중입니다.'; return; }
-  const t = a.transient, kHz = x => (x / 1000).toFixed(2);
-  const tiles = [
-    [RAIN.rate.toFixed(1), '/초', '빗방울 빈도 λ<br>검출기 불감 시간 보정'],
-    [kHz(RAIN.tokHz), 'kHz', '‘톡’ 공진 중심<br>타격 스펙트럼 × 피팅 배수'],
-    [Math.round(RAIN.tukHz), 'Hz', '‘툭’ 공진 중심<br>타격 저역 피크 × 피팅 배수'],
-    [t.ioi_cv_dead_time.toFixed(2), 'CV', '방울 간격 변동계수<br>푸아송 과정이면 1'],
-  ];
-  box.innerHTML = tiles.map(([v, u, d]) => `<div class="stat"><b>${v}<small>${u}</small></b><span>${d}</span></div>`).join('');
-  const s = RAIN_REF.source, f = RAIN_REF.fit, src = $('rain-src');
-  src.textContent = '';
-  if (s) {
-    src.append('레퍼런스: ');
-    const link = document.createElement('a'); link.href = s.url; link.target = '_blank'; link.rel = 'noopener';
-    link.textContent = s.title; src.append(link, ` · ${s.channel} · ${s.start_s}초부터 ${s.duration_s}초 분석`);
-    const q = s.selection, n = x => Number(x).toLocaleString('ko-KR');
-    if (q) src.append(document.createElement('br'),
-      `품질 선정: 조회수 ${n(q.views)} · 좋아요 ${n(q.likes)} (${(q.likes / q.views * 100).toFixed(2)}%) · 댓글 ${n(q.comment_count)} · 구독자 ${n(q.followers)}` +
-      (q.comments ? ` · 인기 댓글 긍정 ${q.comments.positive} / 불만 ${q.comments.negative}` : ''));
-  }
-  if (f) src.append(document.createElement('br'), `엔진 렌더 검증: 1/3옥타브 대역 오차 ${f.band_rms_error_db} dB · 타격 성분 ${Math.round(f.percussive_ratio * 100)}% (레퍼런스 ${Math.round(t.percussive_ratio * 100)}%)`);
-})();
-$('rain-play').onclick = () => { applyPreset(PRESETS.find(p => p.name === '빗소리')); if (!playing) toggle(); };
 
 function showError(msg) { const el = $('err'); el.textContent = msg; el.style.display = msg ? 'block' : 'none'; }
 

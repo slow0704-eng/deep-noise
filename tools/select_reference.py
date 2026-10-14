@@ -1,7 +1,7 @@
-"""레퍼런스 후보 선정: 제목이 아니라 메타정보로 품질을 따져 빗소리 영상을 고른다.
+"""레퍼런스 후보 선정: 제목이 아니라 메타정보로 품질을 따져 장면(빗소리·기차·벽난로) 영상을 고른다.
 
 사용법:
-    python tools/select_reference.py "rain on window no thunder" [--candidates 30] [--top 8] [--fetch]
+    python tools/select_reference.py --scene rain|train|fire [검색어] [--candidates 30] [--top 8] [--fetch]
 
 1. 유튜브 검색 결과 N개의 메타데이터(조회수·좋아요·댓글 수·구독자·업로드일·길이·오디오 비트레이트)를 받는다.
 2. 하드 필터: 길이(분석 구간을 담을 만큼), 라이브 제외, 제목·태그의 제외어(천둥, 음악 등 —
@@ -16,7 +16,8 @@
 4. 메타 점수 상위 --top개만 인기 댓글을 받아 품질 신호를 센다(댓글 수집은 느리다).
      감점: 광고·루프/반복·음악·천둥·가짜/AI·갑작스런 볼륨 언급 / 가점: 진짜 같은·잠·편안
    댓글 점수 0.15를 더해 최종 순위를 낸다.
-결과는 reference/candidates.json에 남기고, --fetch면 1위를 fetch_reference.py로 내려받는다.
+결과는 reference/candidates_<장면>.json에 남기고, --fetch면 1위를 reference/<장면>_ref.wav로 내려받는다.
+장면마다 검색어와 제외어가 다르다(엔진에 없는 소리 — 음악, 다른 장면의 소리 — 가 섞이면 피팅을 망친다).
 """
 import argparse
 import json
@@ -33,11 +34,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fetch_reference import fetch, ytdlp_cmd  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
+MUSIC = r"music|음악|piano|피아노|lofi|lo-fi|jazz|재즈|guitar|meditation music|binaural|solfeggio|\bhz\b|asmr"
 EXCLUDE = r"thunder|천둥|뇌우|번개|lightning|music|음악|piano|피아노|lofi|lo-fi|jazz|재즈|guitar|meditation music|" \
           r"binaural|solfeggio|\bhz\b|fireplace|벽난로|cafe|카페|ocean|파도|birds?\b|새소리"
+SCENES = {
+    "rain":  {"query": "rain on window sounds no thunder", "exclude": None},
+    # 객실 안에서 듣는 주행음: 경적·안내방송·바깥 플랫폼 소리가 많은 영상은 뺀다
+    "train": {"query": "train ride ambience sounds for sleeping no music",
+              "exclude": MUSIC + r"|\brain(?:y|ing|s)?\b|빗소리|\b비\b|thunder|천둥|storm|blizzard|눈보라|horn|whistle|경적|"
+                         r"station|\b역\b|announcement|안내|steam|증기|toy|model|crossing|건널목|subway|지하철|cartoon"},
+    # 장작 타는 소리만: 비·바람·눈보라·음악이 함께 든 영상은 뺀다
+    "fire":  {"query": "crackling fireplace sounds no music",
+              "exclude": MUSIC + r"|\brain(?:y|ing|s)?\b|빗소리|\b비\b|thunder|천둥|storm|폭풍|\bwind\b|바람|blizzard|눈보라|snow|"
+                         r"ocean|파도|birds?\b|새소리|cafe|카페|christmas|크리스마스|\bcats?\b|purr|고양이|study with me|reading|"
+                         r"campfire.*(forest|night)"},
+}
 # "No Thunder", "NO ADS NO MUSIC", "천둥 없는" 같은 부정 표현은 매칭 전에 지운다
 NEGATED = re.compile(r"\b(?:no|without|zero|w/o)\s+(?:[\w-]+\s*(?:[,&/+]|and|or)?\s*){0,1}?"
-                     r"(?:thunder\w*|music|ads?|lightning|talking|voice|loops?)\b|(?:천둥|음악|광고)\s*(?:없는|없이|x)", re.I)
+                     r"(?:thunder\w*|music|ads?|lightning|talking|voice|loops?|rain|wind|horns?)\b|(?:천둥|음악|광고)\s*(?:없는|없이|x)", re.I)
 
 
 def strip_negated(text):
@@ -131,7 +145,7 @@ def zscores(rows, key):
         r["z"][key] = (r["f"][key] - mu) / sd
 
 
-def select(query, n, top, need_s, n_comments, exclude):
+def select(query, n, top, need_s, n_comments, exclude, scene="rain"):
     print(f"검색: '{query}' 상위 {n}개")
     ids = search(query, n)
     with ThreadPoolExecutor(6) as ex:
@@ -179,7 +193,7 @@ def select(query, n, top, need_s, n_comments, exclude):
               f"{m.get('channel_follower_count') or 0:>8,} {r['f']['audio'] * 160:>4.0f} "
               f"{format(c['signal'], '+.2f') if c else '-':>7}  {m.get('title', '')[:50]}")
 
-    out = ROOT / "reference/candidates.json"
+    out = ROOT / f"reference/candidates_{scene}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     summary = [{"rank": i, "id": r["m"]["id"], "title": r["m"].get("title"), "channel": r["m"].get("channel"),
                 "url": r["m"].get("webpage_url"), "duration_s": r["m"].get("duration"),
@@ -193,26 +207,37 @@ def select(query, n, top, need_s, n_comments, exclude):
                                "candidates": summary, "excluded": [{"title": d["m"].get("title"), "why": d["why"]} for d in dropped]},
                               ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n저장: {out.relative_to(ROOT)}")
-    return summary[0]
+    return summary
 
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("query", nargs="?", default="rain on window sounds no thunder")
+    ap.add_argument("query", nargs="?", help="검색어(생략하면 장면 기본값)")
+    ap.add_argument("--scene", choices=SCENES, default="rain")
     ap.add_argument("--candidates", type=int, default=30, help="검색 결과 몇 개를 볼지")
     ap.add_argument("--top", type=int, default=8, help="댓글까지 볼 상위 후보 수")
     ap.add_argument("--comments", type=int, default=60, help="후보당 인기 댓글 수")
     ap.add_argument("--start", type=int, default=300, help="분석 구간 시작(초). 인트로·아웃트로를 피한다")
     ap.add_argument("--duration", type=int, default=180)
-    ap.add_argument("--exclude", default=EXCLUDE, help="제목·태그 제외 정규식")
-    ap.add_argument("--fetch", action="store_true", help="1위를 reference/rain_ref.wav로 내려받기")
+    ap.add_argument("--exclude", help="제목 제외 정규식(생략하면 장면 기본값)")
+    ap.add_argument("--fetch", action="store_true", help="1위를 reference/<장면>_ref.wav로 내려받기")
     a = ap.parse_args()
-    best = select(a.query, a.candidates, a.top, a.start + a.duration + 60, a.comments, a.exclude)
-    print(f"1위: {best['title']} ({best['url']})")
+    sc = SCENES[a.scene]
+    ranked = select(a.query or sc["query"], a.candidates, a.top, a.start + a.duration + 60, a.comments,
+                    a.exclude or sc["exclude"] or EXCLUDE, a.scene)
+    print(f"1위: {ranked[0]['title']} ({ranked[0]['url']})")
     if a.fetch:
-        wav = fetch(best["url"], a.start, a.duration, ROOT / "reference/rain_ref.wav")
+        # 스트림이 막힌 영상(HTTP 403 등)은 건너뛰고 다음 순위를 받는다
+        for best in ranked[:5]:
+            try:
+                wav = fetch(best["url"], a.start, a.duration, ROOT / f"reference/{a.scene}_ref.wav")
+                break
+            except (subprocess.CalledProcessError, SystemExit) as e:
+                print(f"  {best['rank']}위 다운로드 실패({e}) → 다음 후보", file=sys.stderr)
+        else:
+            sys.exit("상위 5개 후보를 모두 내려받지 못했습니다.")
         meta = wav.with_suffix(".json")
         info = json.loads(meta.read_text(encoding="utf-8"))
-        info["selection"] = {k: best[k] for k in ("score", "views", "likes", "comment_count", "followers", "comments")}
+        info["selection"] = {k: best[k] for k in ("rank", "score", "views", "likes", "comment_count", "followers", "comments")}
         meta.write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")

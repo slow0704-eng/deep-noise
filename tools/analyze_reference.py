@@ -1,15 +1,19 @@
-"""레퍼런스 빗소리 분석: WAV → JSON 프로파일.
+"""레퍼런스 분석: WAV → JSON 프로파일 (빗소리·기차·벽난로 공통).
 
 사용법:
-    python tools/analyze_rain.py reference/rain_ref.wav [-o src/rain_profile.json]
+    python tools/analyze_reference.py reference/rain_ref.wav -o src/profiles/rain.json
 
 측정 항목
 - spectral: 스펙트럼 중심(평균·중앙값·분위수), 85% 롤오프, 스펙트럼 기울기(dB/옥타브),
             대역별 에너지 비율, 누적 에너지 1% 지점
 - rms:      RMS 에너지(선형·dB), 변동계수, 2초 단위 느린 변동(바람·세기 변화)
 - transient: HPSS로 분리한 타격 성분 기준 — 온셋 빈도, 온셋 간격(IOI) 통계와 푸아송 적합도,
-             타격 순간의 스펙트럼 중심('톡'), 300–1500 Hz 피크('툭'), 고/저역 비, 감쇠 시간
-엔진 파라미터로의 변환은 src/template.html의 rainFromProfile()이 담당한다.
+             타격 순간의 스펙트럼 중심('톡'), 300–1500 Hz 피크('툭'), 40–300 Hz 피크(기차 '쿵'),
+             고/저역 비, 감쇠 시간
+- periodicity: 타격 엔벨로프 자기상관의 0.3–3초 최대 피크 — 기차 레일 이음매 주기
+- rms.fast_cv: 배경(하모닉) 성분 세기의 2초 창 안 변동 — 불꽃 일렁임
+- stereo_corr: L/R 상관
+엔진 파라미터로의 변환은 src/scene_model.js가 담당한다.
 """
 import argparse
 import json
@@ -33,7 +37,9 @@ def band_ratios(power, freqs):
 
 
 def analyze(path):
-    y, sr = librosa.load(path, sr=None, mono=True)
+    ys, sr = librosa.load(path, sr=None, mono=False)
+    stereo_corr = float(np.corrcoef(ys[0], ys[1])[0, 1]) if ys.ndim == 2 else 1.0
+    y = ys.mean(axis=0) if ys.ndim == 2 else ys
     dur = len(y) / sr
     S = np.abs(librosa.stft(y, n_fft=N_FFT, hop_length=HOP)) ** 2
     freqs = librosa.fft_frequencies(sr=sr, n_fft=N_FFT)
@@ -92,6 +98,27 @@ def analyze(path):
     t_cent = (freqs * on_spec).sum() / (on_spec.sum() + 1e-20)
     lo_sel = (freqs >= 300) & (freqs <= 1500)
     low_peak = freqs[lo_sel][np.argmax(on_spec[lo_sel])]
+    sub_sel = (freqs >= 40) & (freqs <= 300)
+    sub_peak = freqs[sub_sel][np.argmax(on_spec[sub_sel])]
+
+    # 주기성: 100–1000 Hz 대역 세기 엔벨로프(평균 제거)의 자기상관에서 0.3–3초 사이 가장 높은 국소 피크.
+    #   기차의 '덜컹'은 저역 충격이라 광대역 온셋 세기보다 이 대역 엔벨로프에서 주기가 또렷하다.
+    from scipy.signal import find_peaks
+    band_sel = (freqs >= 100) & (freqs <= 1000)
+    e0 = np.sqrt(S[band_sel].sum(axis=0))
+    e0 = e0 - e0.mean()
+    ac = np.correlate(e0, e0, mode="full")[len(e0) - 1:]
+    ac = ac / (ac[0] + 1e-20)
+    lag = np.arange(len(ac)) / per_s
+    pks = [k for k in find_peaks(ac)[0] if 0.3 <= lag[k] <= 3.0]
+    k_p = max(pks, key=lambda k: ac[k]) if pks else int(np.searchsorted(lag, 1.0))
+
+    # 불꽃 일렁임: 배경 성분 세기의 짧은 변동(2초 창 안 CV의 평균) — 느린 세기 변화와 분리
+    #   프레임 단위 노이즈 요동을 지우려고 0.1초 이동 평균한 뒤 잰다(불꽃 일렁임은 수 Hz라 남는다)
+    k_s = max(1, int(0.1 * per_s))
+    bed_env = np.convolve(np.sqrt(Hp.sum(axis=0)), np.ones(k_s) / k_s, mode="same")
+    fast = [bed_env[i:i + win].std() / (bed_env[i:i + win].mean() + 1e-12)
+            for i in range(0, len(bed_env) - win + 1, win)]
     hi_e = on_spec[(freqs >= 2000) & (freqs < 12000)].sum()
     lo_e = on_spec[lo_sel].sum()
 
@@ -130,7 +157,10 @@ def analyze(path):
             "mean_db": r(20 * np.log10(rms.mean() + 1e-12), 2),
             "cv": r(rms.std() / (rms.mean() + 1e-12)),
             "slow_cv": r(slow.std() / (slow.mean() + 1e-12)) if len(slow) > 1 else 0.0,
+            "fast_cv": r(np.mean(fast)) if fast else 0.0,
         },
+        "periodicity": {"period_s": r(lag[k_p]), "strength": r(ac[k_p])},
+        "stereo_corr": r(stereo_corr),
         "transient": {
             "percussive_ratio": r(perc_ratio),
             "onset_count": int(len(onsets)),
@@ -144,6 +174,7 @@ def analyze(path):
             "ioi_cv_dead_time": r(cv_shift),
             "centroid_hz": r(t_cent, 1),
             "low_peak_hz": r(low_peak, 1),
+            "sub_peak_hz": r(sub_peak, 1),
             "high_low_ratio": r(hi_e / (lo_e + 1e-20)),
             "band_energy": band_ratios(on_spec, freqs),
             "decay_ms_median": r(np.median(decays), 1) if decays else None,
@@ -166,6 +197,11 @@ COMPARE = [
     ("불감시간 보정 IOI CV", ("transient", "ioi_cv_dead_time")),
     ("타격 중심 '톡' (Hz)", ("transient", "centroid_hz")),
     ("타격 저역 피크 '툭' (Hz)", ("transient", "low_peak_hz")),
+    ("타격 초저역 피크 (Hz)", ("transient", "sub_peak_hz")),
+    ("주기 (초)", ("periodicity", "period_s")),
+    ("주기성 세기", ("periodicity", "strength")),
+    ("배경 일렁임 CV", ("rms", "fast_cv")),
+    ("L/R 상관", ("stereo_corr",)),
 ]
 
 
@@ -185,11 +221,16 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")   # Windows 콘솔(cp949)에서도 출력이 깨지지 않게
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("wav")
-    ap.add_argument("-o", "--out", default="src/rain_profile.json")
+    ap.add_argument("-o", "--out", required=True, help="프로파일 JSON 경로 (예: src/profiles/rain.json)")
     ap.add_argument("--compare", metavar="PROFILE_JSON", help="결과를 이 프로파일과 비교해 표로 출력")
     a = ap.parse_args()
 
     prof = {"source": None, "analysis": analyze(a.wav)}
+    old = Path(a.out)
+    if old.exists():   # 피팅 결과는 분석을 다시 해도 남긴다(fit_reference.py가 다시 덮어씀)
+        prev = json.loads(old.read_text(encoding="utf-8"))
+        if "fit" in prev:
+            prof["fit"] = prev["fit"]
     meta = Path(a.wav).with_suffix(".json")
     if meta.exists():
         prof["source"] = json.loads(meta.read_text(encoding="utf-8"))
@@ -197,7 +238,8 @@ if __name__ == "__main__":
     t = prof["analysis"]["transient"]
     print(f"저장: {a.out} — 온셋 {t['onset_rate_hz']}/s (보정 {t['rate_corrected_hz']}/s), "
           f"불감시간 보정 IOI CV {t['ioi_cv_dead_time']}, KS {t['poisson_ks_dead_time']}, "
-          f"톡 {t['centroid_hz']} Hz, 툭 {t['low_peak_hz']} Hz")
+          f"톡 {t['centroid_hz']} Hz, 툭 {t['low_peak_hz']} Hz, "
+          f"주기 {prof['analysis']['periodicity']['period_s']} s ({prof['analysis']['periodicity']['strength']})")
     if a.compare:
         ref = json.loads(Path(a.compare).read_text(encoding="utf-8"))["analysis"]
         compare(ref, prof["analysis"])
