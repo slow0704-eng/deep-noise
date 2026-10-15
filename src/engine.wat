@@ -750,7 +750,7 @@
 
   ;; 스케줄러 1샘플: 빗방울·기차·벽난로
   (func $schedule
-    (local $k f32)
+    (local $k f32) (local $mx f32)
     ;; 빗방울
     (global.set $dropT (f32.sub (global.get $dropT) (f32.const 1)))
     (block $d (loop $l
@@ -765,18 +765,26 @@
       (call $clack)
       (br $l)))
     ;; 벽난로: 군집 도착(불꽃이 일렁여 커질 때 더 잦다) → 군집 안 타닥들
+    ;; 도착 빈도가 일렁임을 따라 변하는 비균질 푸아송 과정은 솎아내기(thinning)로 뽑는다:
+    ;; 후보를 최대 빈도 λ·(1 + 1.8·깊이)로 두고, 그 순간의 빈도 비율 λ(t)/λmax로만 받아들인다.
+    ;; (이전에는 일렁임이 깊게 꺼진 순간의 빈도로 다음 간격을 뽑아, 빈도가 0에 가까우면 간격이
+    ;;  수십 분–수 시간이 되어 몇 분 뒤 타닥이 아예 멈췄다)
     (global.set $crT (f32.sub (global.get $crT) (f32.const 1)))
     (if (i32.and (f32.le (global.get $crT) (f32.const 0)) (i32.eqz (global.get $crN)))
       (then
-        (local.set $k (f32.mul (f32.const -1) (f32.demote_f64 (call $log (f64.promote_f32
-          (f32.sub (f32.const 1) (call $u01 (i32.const 1348))))))))
-        (global.set $crN (i32.trunc_f32_u (f32.min (f32.const 12)
-          (f32.add (f32.const 1) (f32.mul (local.get $k) (f32.max (f32.const 0) (f32.sub (call $p (i32.const 36)) (f32.const 1))))))))
-        (global.set $crP (f32.mul (f32.const 0.7) (call $rand (i32.const 1348))))
-        (global.set $crG (f32.const 0))
-        (global.set $crT (f32.add (global.get $crT) (call $interval (i32.const 1348)
-          (f32.mul (call $p (i32.const 35))
-            (f32.max (f32.const 0) (f32.add (f32.const 1) (f32.mul (f32.mul (f32.const 0.6) (call $p (i32.const 39))) (global.get $fn))))))))))
+        (local.set $mx (f32.add (f32.const 1) (f32.mul (f32.const 1.8) (call $p (i32.const 39)))))
+        (if (f32.lt (f32.mul (call $u01 (i32.const 1348)) (local.get $mx))
+                    (f32.add (f32.const 1) (f32.mul (f32.mul (f32.const 0.6) (call $p (i32.const 39))) (global.get $fn))))
+          (then
+            (local.set $k (f32.mul (f32.const -1) (f32.demote_f64 (call $log (f64.promote_f32
+              (f32.sub (f32.const 1) (call $u01 (i32.const 1348))))))))
+            (global.set $crN (i32.trunc_f32_u (f32.min (f32.const 12)
+              (f32.add (f32.const 1) (f32.mul (local.get $k) (f32.max (f32.const 0) (f32.sub (call $p (i32.const 36)) (f32.const 1))))))))
+            (global.set $crP (f32.mul (f32.const 0.7) (call $rand (i32.const 1348))))
+            (global.set $crG (f32.const 0))))
+        ;; 이미 늦어진 만큼(군집이 이어지는 동안 쌓인 음수)은 버린다 — 밀린 군집이 한꺼번에 몰리지 않게
+        (global.set $crT (f32.add (f32.max (global.get $crT) (f32.const 0))
+          (call $interval (i32.const 1348) (f32.mul (call $p (i32.const 35)) (local.get $mx)))))))
     (if (global.get $crN)
       (then
         (global.set $crG (f32.sub (global.get $crG) (f32.const 1)))
