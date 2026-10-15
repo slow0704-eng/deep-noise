@@ -208,8 +208,8 @@ kbd{font-family:inherit;border:1px solid rgba(255,255,255,.18);border-radius:5px
   <section class="section" id="sound">
     <div class="reveal">
       <p class="eyebrow">프리셋</p>
-      <h2 class="headline">열세 가지 풍경.<br>하나의 엔진.</h2>
-      <p class="lede">샤워 물줄기와 폭포, 빗소리와 시냇물, 여름밤 풀벌레와 벽난로까지. <strong>탭 한 번으로</strong> 지금 필요한 고요를 고르세요.</p>
+      <h2 class="headline">열다섯 가지 풍경.<br>하나의 엔진.</h2>
+      <p class="lede">샤워 물줄기와 폭포, 빗소리와 시냇물, 여름밤 풀벌레와 벽난로, 독서실과 사무실까지. <strong>탭 한 번으로</strong> 지금 필요한 고요를 고르세요.</p>
     </div>
     <div class="presets reveal" id="presets"></div>
     <div class="scene" id="scene" hidden aria-live="polite">
@@ -220,6 +220,8 @@ kbd{font-family:inherit;border:1px solid rgba(255,255,255,.18);border-radius:5px
       <div id="g-stream" class="cols2 sg" hidden></div>
       <div id="g-wind" class="cols2 sg" hidden></div>
       <div id="g-night" class="cols2 sg" hidden></div>
+      <div id="g-study" class="cols2 sg" hidden></div>
+      <div id="g-office" class="cols2 sg" hidden></div>
       <details class="more" id="scene-more">
         <summary>어떻게 만들었나요</summary>
         <p class="how" id="scene-how"></p>
@@ -318,7 +320,7 @@ const WASM_B64 = "/*__WASM_BASE64__*/";
 const SCENE_REFS = /*__SCENE_PROFILES__*/null || {};
 /*__SCENE_MODEL__*/
 const SM = Object.fromEntries(Object.entries(SCENE_MODELS).map(([k, f]) => [k, f(SCENE_REFS[k])]));
-const { rain:RAIN, train:TRAIN, fire:FIRE, stream:STREAM, wind:WIND, night:NIGHT } = SM;
+const { rain:RAIN, train:TRAIN, fire:FIRE, stream:STREAM, wind:WIND, night:NIGHT, study:STUDY, office:OFFICE } = SM;
 
 // ── 아이콘 (Lucide, ISC 라이선스 — https://lucide.dev) ─────────
 const ICONS = {
@@ -334,6 +336,8 @@ const ICONS = {
   droplet: '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>',
   wind: '<path d="M12.8 19.6A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/><path d="M9.8 4.4A2 2 0 1 1 11 8H2"/>',
   moonStar: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9"/><path d="M20 3v4"/><path d="M22 5h-4"/>',
+  bookOpen: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
+  keyboard: '<path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/>',
   headphones: '<path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/>',
 };
 // 아이콘 타일: [아이콘, 그라데이션 시작, 끝]
@@ -389,6 +393,20 @@ const CONTROLS = [
   { key:'cPitch', g:'night', label:'울음 높이', id:53, color:'#c9b8ff', map:v=>NIGHT.cricketHz*Math.pow(2,v-.5), fmt:v=>hz(NIGHT.cricketHz*Math.pow(2,v-.5)),
     also:[[56, v=>NIGHT.cricket2Hz*Math.pow(2,v-.5)]] },
 
+  // 독서실: 연필 필기(69–), 책장 넘김(64·65 — 사무실 프리셋도 이 값을 쓴다)
+  { key:'write', g:'study', label:'연필 필기', id:69, color:'#f2d7a0', fmt:pct },
+  { key:'wRate', g:'study', label:'필기 빈도', id:70, color:'#f2d7a0', map:v=>STUDY.burstRate*Math.pow(2,(v-.5)*3),
+    fmt:v=>'분당 '+(STUDY.burstRate*Math.pow(2,(v-.5)*3)*60).toFixed(0)+'줄' },
+  { key:'page', g:'study', label:'책장 넘김', id:64, color:'#e8c890', fmt:pct },
+  { key:'pRate', g:'study', label:'넘김 간격', id:65, color:'#e8c890', map:logMap(.005,.5), fmt:v=>'약 '+Math.round(1/logMap(.005,.5)(v))+' 초마다' },
+  // 사무실: 키보드 타이핑(58–), 먼 대화(66·67)
+  { key:'type', g:'office', label:'키보드 타이핑', id:58, color:'#a8c4e8', fmt:pct },
+  { key:'tRate', g:'office', label:'타이핑 빈도', id:59, color:'#a8c4e8', map:v=>OFFICE.burstRate*Math.pow(2,(v-.5)*3),
+    fmt:v=>'분당 약 '+Math.round(OFFICE.burstRate*OFFICE.burstSize*Math.pow(2,(v-.5)*3)*60)+'타' },
+  { key:'murmur', g:'office', label:'먼 대화', id:66, color:'#c9b8ff', fmt:pct },
+  { key:'mDist', g:'office', label:'대화 거리', id:67, color:'#c9b8ff', map:logMap(3000,500),
+    fmt:v=>v<.25?'가까이':v<.5?'옆자리 너머':v<.75?'사무실 건너편':'먼 곳' },
+
   { key:'tone',  g:'filter', label:'로우패스 컷오프', id:7, color:'#b48cff', map:logMap(120,20000), fmt:v=>hz(logMap(120,20000)(v)) },
   { key:'lpq',   g:'filter', label:'로우패스 Q (공진)', id:15, color:'#b48cff', map:Q, fmt:v=>Q(v).toFixed(2) },
   { key:'lps',   g:'filter', label:'로우패스 기울기', id:28, color:'#b48cff', fmt:v=>Math.round(12+12*v)+' dB/oct' },
@@ -415,6 +433,7 @@ const BASE = { level:.5, white:0, pink:0, brown:0, deep:0, rain:0, subf:.4, bass
   pit:0, tok:RAIN.pTok, pitch:.5, lps:0,
   clack:0, speed:.5, clackPitch:.5, crackle:0, crRate:.5, pop:FIRE.popRatio/.6, flicker:0,
   bubble:0, bRate:.5, bPitch:.5, glide:STREAM.glide/1.5, gust:0, gustSp:.5, howl:0, howlP:.5, cricket:0, chirp:.5, cPitch:.5,
+  write:0, wRate:.5, page:0, pRate:logInv(.005,.5,.05), type:0, tRate:.5, murmur:0, mDist:logInv(3000,500,1200),
   lpq:logInv(.5,10,.707), hpf:0, hpq:logInv(.5,10,.707), fin:logInv(.05,10,1.5), fout:logInv(.05,10,.8) };
 // 레퍼런스 분석 → 슬라이더 값 (장면 프리셋). 배경·톤은 세 장면 공통.
 function bedPreset(m) {
@@ -428,6 +447,9 @@ const firePreset  = () => ({ ...bedPreset(FIRE), crackle:FIRE.crackleLevel, crRa
 const streamPreset = () => ({ ...bedPreset(STREAM), bubble:STREAM.bubbleLevel, bRate:.5, bPitch:.5, glide:STREAM.glide / 1.5 });
 const windPreset   = () => ({ ...bedPreset(WIND), gust:WIND.gust, gustSp:.5, howl:WIND.howlLevel, howlP:.5 });
 const nightPreset  = () => ({ ...bedPreset(NIGHT), cricket:NIGHT.cricketLevel, chirp:.5, cPitch:.5 });
+const studyPreset  = () => ({ ...bedPreset(STUDY), write:STUDY.handLevel, wRate:.5, page:STUDY.pageLevel, pRate:logInv(.005,.5,STUDY.pageRate) });
+const officePreset = () => ({ ...bedPreset(OFFICE), type:OFFICE.handLevel, tRate:.5, murmur:OFFICE.murmurLevel, mDist:logInv(3000,500,OFFICE.murmurHz),
+  page:OFFICE.pageLevel, pRate:logInv(.005,.5,OFFICE.pageRate) });
 const PRESETS = [
   { name:'깊은 우주', icon:tile('orbit','#6d7cff','#3a2a9e'), v:{ brown:.55, deep:.9, subf:.25, bass:.55, tone:.45, warm:.45, width:.85, swell:.3, rate:.15 } },
   // 화이트·핑크·브라운은 그 색에 가장 가까운 실제 소리(레퍼런스 녹음에 맞춘 배경)로 들려준다
@@ -441,6 +463,8 @@ const PRESETS = [
   { name:'여름밤',   icon:tile('moonStar','#a8e6a0','#25507a'), scene:'night', v:nightPreset() },
   { name:'기차',     icon:tile('train','#9aa7ff','#3b3f8f'), scene:'train', v:trainPreset() },
   { name:'벽난로',   icon:tile('flame','#ffb86b','#d9452b'), scene:'fire', v:firePreset() },
+  { name:'독서실',   icon:tile('bookOpen','#f5dca8','#8a6a3a'), scene:'study', v:studyPreset() },
+  { name:'사무실',   icon:tile('keyboard','#b8d0f0','#3d5a85'), scene:'office', v:officePreset() },
   { name:'비행기 객실', icon:tile('plane','#9fb7d6','#3f5878'), v:{ brown:.85, deep:.6, subf:.65, bass:.45, tone:.4, warm:.3, width:.35, hpf:.22 } },
   { name:'집중',     icon:tile('headphones','#7fe0b0','#1f8a6a'), v:{ pink:.6, brown:.45, tone:.72, air:-.25, width:.7, hpf:.45 } },
 ];
@@ -484,6 +508,18 @@ const SCENES = {
       [NIGHT.period.toFixed(2), '초', '울음 간격<br>울음 대역 엔벨로프 자기상관'],
       [Math.round(NIGHT.pulseHz), 'Hz', '펄스 빈도<br>1.3 ms 엔벨로프 자기상관'],
       [NIGHT.pulses, '개', '울음당 펄스<br>간격 × 점유율 × 펄스 빈도']] },
+  study: { name:'독서실', icon:tile('bookOpen','#f5dca8','#8a6a3a'), keys:['write', 'page'], desc:'사각사각 연필 소리, 가끔 넘어가는 책장',
+    how:'도서관 열람실 녹음을 분석해 조용한 실내 공기 위에 <b>사람의 손길</b>을 올립니다. 필기는 한 줄씩 몰려 오고(묶음은 푸아송 도착, 줄 안은 고른 리듬), 획마다 천천히 부푸는 ‘스슥’과 종이 결의 작은 알갱이가 섞입니다. 책장은 공기를 밀어내는 ‘사락’과 종이가 휘는 바스락으로 넘어갑니다.',
+    tiles:a => [[(STUDY.burstRate * 60).toFixed(1), '줄/분', '필기 빈도<br>보정 온셋 빈도 ÷ 줄당 획 수'],
+      [kHz(STUDY.handHz * STUDY.handPitch), 'kHz', '연필 결 중심<br>스펙트럼 피팅 배수'],
+      [Math.round(1 / STUDY.pageRate), '초', '책장 넘김 간격<br>평균(푸아송)'],
+      [a.spectral.slope_db_per_oct.toFixed(1), 'dB/oct', '실내 공기의 색<br>화이트 0 · 핑크 −3 · 브라운 −6']] },
+  office: { name:'사무실', icon:tile('keyboard','#b8d0f0','#3d5a85'), keys:['type', 'murmur'], desc:'타닥타닥 키보드, 멀리서 들리는 대화',
+    how:'사무실 녹음을 분석해 공조기 소리 위에 <b>키보드 타이핑</b>과 <b>먼 대화</b>를 얹습니다. 키 하나는 키캡의 ‘딸깍’, 바닥에 닿는 ‘톡’, 손을 떼며 나는 작은 복귀음으로 이뤄지고, 가끔 스페이스처럼 크고 낮은 키가 섞입니다. 대화는 두 사람의 성대 떨림을 모음 공명(포먼트)에 통과시켜 음절·문장 단위로 끊어 말하게 하고, 거리만큼 먹먹하게 깎습니다 — 말뜻은 들리지 않습니다.',
+    tiles:a => [[Math.round(OFFICE.burstRate * OFFICE.burstSize * 60), '타/분', '타이핑 빈도<br>보정 온셋 빈도'],
+      [kHz(OFFICE.handHz * OFFICE.handPitch), 'kHz', '키캡 공진 중심<br>스펙트럼 피팅 배수'],
+      [Math.round(OFFICE.murmurLevel * 100), '%', '먼 대화 레벨<br>스펙트럼 피팅'],
+      [Math.round(a.transient.percussive_ratio * 100), '%', '타격 성분 비율<br>HPSS']] },
   shower: { name:'샤워 물줄기', bed:true, icon:tile('shower','#d5e4f2','#5b7a99'), desc:'화이트 노이즈에 가장 가까운 소리',
     how:'화이트 노이즈는 모든 높이의 소리가 고르게 섞인 ‘쏴—’입니다. 실제 샤워 녹음의 소리 색을 1/3옥타브 단위로 재어, 엔진의 노이즈를 <b>어떤 비율로 섞고 어디서 깎아야</b> 같은 색이 되는지 찾았습니다.', tiles:bedTiles('shower') },
   waterfall: { name:'폭포', bed:true, icon:tile('droplets','#ff9ccf','#7d4fd0'), desc:'핑크 노이즈에 가장 가까운 소리',
@@ -557,7 +593,9 @@ function engineParams() {
     31, TRAIN.thumpHz, 32, TRAIN.knockHz,                                   // 기차: 쿵·덩 중심
     36, FIRE.clusterSize, 37, FIRE.crackleHz, 40, FIRE.popHz,               // 벽난로: 군집 크기, 타닥·펑 중심
     43, STREAM.bubbleHz,                                                    // 시냇물: 방울 중심
-    54, NIGHT.pulses, 55, NIGHT.pulseHz];                                   // 여름밤: 울음당 펄스 수·펄스 빈도
+    54, NIGHT.pulses, 55, NIGHT.pulseHz,                                    // 여름밤: 울음당 펄스 수·펄스 빈도
+    60, OFFICE.burstSize, 61, OFFICE.handRhythm, 62, OFFICE.handHz, 68, OFFICE.handPitch,   // 사무실: 묶음 크기·리듬·키캡 중심
+    71, STUDY.burstSize, 72, STUDY.handRhythm, 73, STUDY.handHz, 74, STUDY.handPitch];      // 독서실: 줄당 획 수·리듬·연필 중심
   for (const c of CONTROLS) for (const [id, f] of sends(c)) p.push(id, f(state.v[c.key]));
   return p;
 }
@@ -645,7 +683,8 @@ function renderPreset() {
   $('pname').textContent = state.preset || '사용자 설정';
   const v = state.v, m = [];
   const layers = [['밝은 쏴—',v.white],['부드러운 물소리',v.pink],['묵직한 웅—',v.brown],['서브 저음',v.deep],['빗방울',Math.max(v.rain,v.pit)],
-    ['레일',v.clack],['장작',v.crackle],['물방울',v.bubble],['돌풍',Math.max(v.gust,v.howl)],['풀벌레',v.cricket]].filter(x=>x[1]>.02);
+    ['레일',v.clack],['장작',v.crackle],['물방울',v.bubble],['돌풍',Math.max(v.gust,v.howl)],['풀벌레',v.cricket],
+    ['연필',v.write],['책장',v.page],['키보드',v.type],['먼 대화',v.murmur]].filter(x=>x[1]>.02);
   m.push(layers.length ? layers.map(x=>x[0]).join(' + ') : '무음');
   if (v.deep > .02) m.push('서브 ' + Math.round(logMap(25,120)(v.subf)) + ' Hz');
   if (v.hpf >= .005) m.push('HPF ' + hz(logMap(10,2000)(v.hpf)));

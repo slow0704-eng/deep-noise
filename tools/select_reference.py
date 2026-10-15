@@ -75,6 +75,17 @@ SCENES = {
     "fan": {"require": r"\bfans?\b|선풍기", "query": "fan noise for sleeping no music",
             "exclude": MUSIC + r"|\brain(?:y|ing|s)?\b|빗소리|thunder|천둥|hair ?dryer|드라이어|vacuum|청소기|washing|세탁기|"
                        r"dryer|건조기|shower|샤워|ocean|파도|baby|아기|heartbeat|심장|airplane|비행기|car\b|자동차"},
+    # 아래 둘은 실내 장면: 조용한 배경 + 사람의 활동(필기·책장 / 타이핑·먼 대화)
+    # 독서실·도서관: 카페·비·벽난로·판타지 배경(음악이 섞임)이 함께 든 영상은 뺀다
+    "study": {"require": r"library|study room|reading room|독서실|도서관|열람실", "query": "library ambience sounds for studying pages turning writing no music",
+              "exclude": MUSIC + r"|\brain(?:y|ing|s)?\b|빗소리|\b비\b|thunder|천둥|storm|fire|벽난로|모닥불|cafe|café|카페|coffee|커피|"
+                         r"ocean|파도|harry potter|hogwarts|호그와트|magic|마법|medieval|fantasy|ancient|dark academia|castle|"
+                         r"christmas|크리스마스|snow|cats?\b|고양이|night|밤"},
+    # 사무실: 비·카페·음악·드라마('The Office')가 섞인 영상은 뺀다
+    "office": {"require": r"office|사무실|workplace|coworking", "query": "office ambience background noise typing people talking no music",
+               "exclude": MUSIC + r"|\brain(?:y|ing|s)?\b|빗소리|\b비\b|thunder|천둥|storm|fire|벽난로|cafe|café|카페|coffee shop|커피|"
+                          r"ocean|파도|the office|dunder|michael scott|anime|애니|sci-?fi|spaceship|cyberpunk|christmas|크리스마스|"
+                          r"night|밤|haunted|horror|animal crossing|acnh|동물의 ?숲|suits|harvey|tv ambience|game"},
 }
 # "No Thunder", "NO ADS NO MUSIC", "천둥 없는" 같은 부정 표현은 매칭 전에 지운다
 NEGATED = re.compile(r"\b(?:no|without|zero|w/o)\s+(?:[\w-]+\s*(?:[,&/+]|and|or)?\s*){0,1}?"

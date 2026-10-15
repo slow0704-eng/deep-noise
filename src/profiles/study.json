@@ -1,0 +1,131 @@
+{
+  "source": {
+    "url": "https://www.youtube.com/watch?v=4vIQON2fDWM",
+    "id": "4vIQON2fDWM",
+    "title": "Library Sounds | Study Ambience | 2 hours",
+    "channel": "The Guild of Ambience",
+    "start_s": 300,
+    "duration_s": 180,
+    "selection": {
+      "rank": 2,
+      "score": -0.126,
+      "views": 21871854,
+      "likes": 240601,
+      "comment_count": 5800,
+      "followers": 635000,
+      "comments": {
+        "signal": 0.167,
+        "positive": 26,
+        "negative": 8
+      }
+    }
+  },
+  "analysis": {
+    "file": "study_ref.wav",
+    "sample_rate": 48000,
+    "duration_s": 180.0,
+    "spectral": {
+      "centroid_hz": {
+        "mean": 471.6,
+        "median": 431.0,
+        "p10": 270.3,
+        "p90": 641.2
+      },
+      "rolloff85_hz_median": 679.7,
+      "slope_db_per_oct": -6.46,
+      "cumulative_1pct_hz": 23.4,
+      "band_energy": {
+        "20-60": 0.0645,
+        "60-250": 0.4124,
+        "250-1000": 0.4093,
+        "1000-4000": 0.0986,
+        "4000-8000": 0.0106,
+        "8000-16000": 0.0039,
+        "16000-24000": 0.0
+      }
+    },
+    "bed": {
+      "slope_db_per_oct": -7.23,
+      "centroid_hz": 226.6,
+      "rolloff85_hz": 351.6,
+      "band_energy": {
+        "20-60": 0.0742,
+        "60-250": 0.7079,
+        "250-1000": 0.196,
+        "1000-4000": 0.0193,
+        "4000-8000": 0.0016,
+        "8000-16000": 0.001,
+        "16000-24000": 0.0
+      }
+    },
+    "rms": {
+      "mean": 0.01651,
+      "std": 0.03826,
+      "mean_db": -35.64,
+      "cv": 2.318,
+      "slow_cv": 0.42,
+      "fast_cv": 0.17,
+      "gust_hz": 0.911
+    },
+    "tonal": {
+      "peak_hz": 2085.9,
+      "prominence_db": 11.3,
+      "peak2_hz": 3070.3,
+      "period_s": 0.363,
+      "period_strength": 0.156,
+      "duty": 0.322,
+      "pulse_hz": 19.7,
+      "pulse_strength": 0.176
+    },
+    "periodicity": {
+      "period_s": 0.309,
+      "strength": 0.271
+    },
+    "stereo_corr": 0.739,
+    "transient": {
+      "percussive_ratio": 0.49,
+      "onset_count": 433,
+      "onset_rate_hz": 2.41,
+      "detector_dead_time_ms": 32.0,
+      "rate_corrected_hz": 2.61,
+      "ioi_ms_mean": 416.3,
+      "ioi_cv": 0.873,
+      "poisson_ks": 0.078,
+      "poisson_ks_dead_time": 0.043,
+      "ioi_cv_dead_time": 0.946,
+      "centroid_hz": 1320.9,
+      "low_peak_hz": 328.1,
+      "sub_peak_hz": 234.4,
+      "high_low_ratio": 0.246,
+      "band_energy": {
+        "20-60": 0.0033,
+        "60-250": 0.1026,
+        "250-1000": 0.4593,
+        "1000-4000": 0.3728,
+        "4000-8000": 0.0503,
+        "8000-16000": 0.0111,
+        "16000-24000": 0.0
+      },
+      "decay_ms_median": 53.3
+    }
+  },
+  "fit": {
+    "lpHz": 12000,
+    "lpQ": 1.4,
+    "lpSlope": 0,
+    "air": -0.7,
+    "pitch": 0.5,
+    "subHz": 100,
+    "hpHz": 120,
+    "band_rms_error_db": 1.99,
+    "percussive_ratio": 0.344,
+    "render_rms": 0.1199,
+    "render_peak": 0.626,
+    "makeup": 2.602,
+    "white": 0.029,
+    "pink": 0.0,
+    "brown": 0.811,
+    "deep": 1.0,
+    "handLevel": 0.6
+  }
+}
