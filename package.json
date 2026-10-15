@@ -2,7 +2,7 @@
   "name": "deep-noise",
   "version": "1.0.0",
   "private": true,
-  "description": "WebAssembly 음향 엔진 기반 화이트노이즈·장면(샤워·폭포·선풍기·빗소리·시냇물·바람·여름밤·기차·벽난로) 플레이어",
+  "description": "WebAssembly 음향 엔진 기반 화이트노이즈·장면(샤워·폭포·선풍기·빗소리·시냇물·바람·여름밤·기차·벽난로·독서실·사무실) 플레이어",
   "scripts": {
     "build": "node build.cjs",
     "rain:fetch": "python tools/select_reference.py --scene rain --fetch --start 300 --duration 180",
@@ -49,7 +49,17 @@
     "fan:analyze": "python tools/analyze_reference.py reference/fan_ref.wav -o src/profiles/fan.json",
     "fan:fit": "npm run build && python tools/fit_reference.py fan",
     "fan:verify": "node tools/render_scene.cjs fan 60 && python tools/analyze_reference.py reference/fan_render.wav -o reference/fan_render_profile.json --compare src/profiles/fan.json",
-    "fan": "npm run fan:fetch && npm run fan:analyze && npm run fan:fit && npm run build && npm run fan:verify"
+    "fan": "npm run fan:fetch && npm run fan:analyze && npm run fan:fit && npm run build && npm run fan:verify",
+    "study:fetch": "python tools/select_reference.py --scene study --fetch --start 300 --duration 180",
+    "study:analyze": "python tools/analyze_reference.py reference/study_ref.wav -o src/profiles/study.json",
+    "study:fit": "npm run build && python tools/fit_reference.py study",
+    "study:verify": "node tools/render_scene.cjs study 60 && python tools/analyze_reference.py reference/study_render.wav -o reference/study_render_profile.json --compare src/profiles/study.json",
+    "study": "npm run study:fetch && npm run study:analyze && npm run study:fit && npm run build && npm run study:verify",
+    "office:fetch": "python tools/select_reference.py --scene office --fetch --start 300 --duration 180",
+    "office:analyze": "python tools/analyze_reference.py reference/office_ref.wav -o src/profiles/office.json",
+    "office:fit": "npm run build && python tools/fit_reference.py office",
+    "office:verify": "node tools/render_scene.cjs office 60 && python tools/analyze_reference.py reference/office_render.wav -o reference/office_render_profile.json --compare src/profiles/office.json",
+    "office": "npm run office:fetch && npm run office:analyze && npm run office:fit && npm run build && npm run office:verify"
   },
   "devDependencies": {
     "wabt": "1.0.36"

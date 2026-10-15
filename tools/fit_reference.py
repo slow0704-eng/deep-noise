@@ -51,6 +51,13 @@ SCENES = {
     "shower":    {"layers": BED, "event": None, "hits": (), "pitches": (1.0,), "pitch_id": "27", "hp_grid": True},
     "waterfall": {"layers": BED, "event": None, "hits": (), "pitches": (1.0,), "pitch_id": "27", "hp_grid": True},
     "fan":       {"layers": BED, "event": None, "hits": (), "pitches": (1.0,), "pitch_id": "27", "hp_grid": True},
+    # 실내: 손길(독서실 연필 69, 사무실 키보드 58)은 음높이 배수 격자, 먼 대화는 사건 버스를 지난다.
+    #   책장 넘김(64)은 드물어서 피팅하지 않는다. 키캡 중심은 타격 스펙트럼 중심에서 오므로 배수는 ±½ oct 안에서만
+    #   (스펙트럼만 맞추면 말소리·공조음 대역에 끌려 ‘딸깍’이 둔한 ‘툭’이 된다)
+    "study":  {"layers": BED + [("handLevel", 69)],
+               "event": 69, "hits": (69,), "pitched": (69,), "pitches": (0.5, 0.7, 1.0, 1.4, 2.0), "pitch_id": "74", "hp_grid": True},
+    "office": {"layers": BED + [("handLevel", 58), ("murmurLevel", 66)],
+               "event": 58, "hits": (58, 66), "pitched": (58,), "pitches": (0.7, 1.0, 1.4), "pitch_id": "68", "hp_grid": True},
 }
 LAYERS, DROP, HITS, SCENE = [], 0, (), "rain"      # fit()이 장면에 맞게 채운다
 EDGES = 20 * 2 ** (np.arange(0, 30) / 3)            # 20 Hz – 약 10 kHz, 1/3옥타브
@@ -160,7 +167,8 @@ def fit(scene, ref_wav, profile_path):
         c1 = prof["analysis"]["spectral"]["cumulative_1pct_hz"]
         # 돌풍(46)도 끈다: 정상 상태 스펙트럼으로 맞추고, 돌풍은 재생할 때 그 위에서 흔든다
         hp_rule = min(400, c1) if c1 >= 25 else 0
-        off.update({"10": 0, "46": 0, "16": 0 if cfg.get("hp_grid") else hp_rule})
+        #   책장 넘김(64)도 끈다: 드물어서 20초 렌더마다 들어가거나 빠져 레이어 파워를 흔든다
+        off.update({"10": 0, "46": 0, "64": 0, "16": 0 if cfg.get("hp_grid") else hp_rule})
         #   hp_grid면 레이어는 하이패스 없이 렌더하고 후보 컷오프의 응답을 해석적으로 곱한다
         HPS = sorted({hp_rule, 0, 30, 45, 60, 80, 120}) if cfg.get("hp_grid") else (None,)
         # 피팅용 렌더는 마스터를 1/10로 낮춰 출력 리미터가 개입하지 않는 선형 구간에서 잰다
